@@ -23,14 +23,16 @@ tf.flags.DEFINE_integer("epochs", 100, "Number of epochs to train for.")
 tf.flags.DEFINE_integer("embedding_size", 40, "Embedding size for embedding matrices.")
 tf.flags.DEFINE_integer("memory_size", 50, "Maximum size of memory.")
 tf.flags.DEFINE_integer("random_state", None, "Random state.")
-tf.flags.DEFINE_string("data_dir", "data/tasks_1-20_v1-2/en/", "Directory containing bAbI tasks")
+tf.flags.DEFINE_string("data_dir", "data/tasks_1-20_v1-2_w_metareasoning/en/", "Directory containing bAbI tasks")
 tf.flags.DEFINE_string("output_file", "scores.csv", "Name of output file for final bAbI accuracy scores.")
 FLAGS = tf.flags.FLAGS
 
 print("Started Joint Model")
 
+n_tasks = 44
+
 # load all train/test data
-ids = range(1, 21)
+ids = range(1, n_tasks+1)
 train, test = [], []
 for i in ids:
     tr, te = load_task(FLAGS.data_dir, i)
@@ -118,8 +120,9 @@ with tf.Session() as sess:
 
         if i % FLAGS.evaluation_interval == 0:
             train_accs = []
-            for start in range(0, n_train, n_train/20):
-                end = start + n_train/20
+            step = int(n_train/n_tasks)
+            for start in range(0, n_train, step):
+                end = start + step
                 s = trainS[start:end]
                 q = trainQ[start:end]
                 pred = model.predict(s, q)
@@ -127,8 +130,9 @@ with tf.Session() as sess:
                 train_accs.append(acc)
 
             val_accs = []
-            for start in range(0, n_val, n_val/20):
-                end = start + n_val/20
+            step = int(n_val/n_tasks)
+            for start in range(0, n_val, step):
+                end = start + step
                 s = valS[start:end]
                 q = valQ[start:end]
                 pred = model.predict(s, q)
@@ -136,8 +140,9 @@ with tf.Session() as sess:
                 val_accs.append(acc)
 
             test_accs = []
-            for start in range(0, n_test, n_test/20):
-                end = start + n_test/20
+            step = int(n_test/n_tasks)
+            for start in range(0, n_test, step):
+                end = start + step
                 s = testS[start:end]
                 q = testQ[start:end]
                 pred = model.predict(s, q)
@@ -165,6 +170,6 @@ with tf.Session() as sess:
             'Training Accuracy': train_accs,
             'Validation Accuracy': val_accs,
             'Testing Accuracy': test_accs
-            }, index=range(1, 21))
+            }, index=range(1, n_tasks+1))
             df.index.name = 'Task'
             df.to_csv(FLAGS.output_file)
