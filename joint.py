@@ -125,7 +125,7 @@ with tf.Session() as sess:
                 end = start + step
                 s = trainS[start:end]
                 q = trainQ[start:end]
-                pred = model.predict(s, q)
+                pred, human_readable = model.predict(s, q)
                 acc = metrics.accuracy_score(pred, train_labels[start:end])
                 train_accs.append(acc)
 
@@ -135,7 +135,7 @@ with tf.Session() as sess:
                 end = start + step
                 s = valS[start:end]
                 q = valQ[start:end]
-                pred = model.predict(s, q)
+                pred, human_readable = model.predict(s, q)
                 acc = metrics.accuracy_score(pred, val_labels[start:end])
                 val_accs.append(acc)
 
@@ -145,7 +145,7 @@ with tf.Session() as sess:
                 end = start + step
                 s = testS[start:end]
                 q = testQ[start:end]
-                pred = model.predict(s, q)
+                pred, human_readable = model.predict(s, q)
                 acc = metrics.accuracy_score(pred, test_labels[start:end])
                 test_accs.append(acc)
 

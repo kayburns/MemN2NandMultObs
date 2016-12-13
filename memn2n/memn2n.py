@@ -53,6 +53,8 @@ def add_gradient_noise(t, stddev=1e-3, name=None):
 class MemN2N(object):
     """End-To-End Memory Network."""
     def __init__(self, batch_size, vocab_size, sentence_size, memory_size, embedding_size,
+        vocab_dict,
+        reverse_mapping,
         hops=3,
         max_grad_norm=40.0,
         nonlin=None,
@@ -60,6 +62,7 @@ class MemN2N(object):
         optimizer=tf.train.AdamOptimizer(learning_rate=1e-2),
         encoding=position_encoding,
         session=tf.Session(),
+        tex_file='./output.tex',
         name='MemN2N'):
         """Creates an End-To-End Memory Network
 
@@ -108,6 +111,9 @@ class MemN2N(object):
         self._opt = optimizer
         self._name = name
 
+        self._vocab_dict = vocab_dict
+        self._reverse_mapping = reverse_mapping
+
         self._build_inputs()
         self._build_vars()
         self._encoding = tf.constant(encoding(self._sentence_size, self._embedding_size), name="encoding")
@@ -148,7 +154,6 @@ class MemN2N(object):
         self._sess = session
         self._sess.run(init_op)
 
-
     def _build_inputs(self):
         self._stories = tf.placeholder(tf.int32, [None, self._memory_size, self._sentence_size], name="stories")
         self._queries = tf.placeholder(tf.int32, [None, self._sentence_size], name="queries")
@@ -173,6 +178,7 @@ class MemN2N(object):
             q_emb = tf.nn.embedding_lookup(self.B, queries)
             u_0 = tf.reduce_sum(q_emb * self._encoding, 1)
             u = [u_0]
+            self.probs = []
             for _ in range(self._hops):
                 m_emb = tf.nn.embedding_lookup(self.A, stories)
                 m = tf.reduce_sum(m_emb * self._encoding, 2) + self.TA
@@ -182,6 +188,7 @@ class MemN2N(object):
 
                 # Calculate probabilities
                 probs = tf.nn.softmax(dotted)
+                self.probs.append(probs)
 
                 probs_temp = tf.transpose(tf.expand_dims(probs, -1), [0, 2, 1])
                 c_temp = tf.transpose(m, [0, 2, 1])
@@ -221,8 +228,21 @@ class MemN2N(object):
         Returns:
             answers: Tensor (None, vocab_size)
         """
-        feed_dict = {self._stories: stories, self._queries: queries}
-        return self._sess.run(self.predict_op, feed_dict=feed_dict)
+        feed_dict = {
+            self._stories: stories, 
+            self._queries: queries,
+        }
+        fetches = [
+            self.predict_op,
+            self.probs,
+            self._stories,
+            self._queries,
+        ]
+
+        predictions, probs, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
+        tex_output = self.tex_output(predictions, probs, stories, queries)
+
+        return predictions, tex_output
 
     def predict_proba(self, stories, queries):
         """Predicts probabilities of answers.
@@ -248,3 +268,57 @@ class MemN2N(object):
         """
         feed_dict = {self._stories: stories, self._queries: queries}
         return self._sess.run(self.predict_log_proba_op, feed_dict=feed_dict)
+
+    def reverse_mapping(self, sentence):
+        """Returns a sequence of word tokens from a list of integers.
+ 
+        Args:
+            sentence: List (sentence_size)
+        """
+
+    def tex_output(self, predictions, probs, stories, queries):
+
+	colors = ['red', 'blue', 'green']
+
+        for i in range(predictions.shape[0]):
+
+			s += """
+\begin{tikzpicture}
+	\begin{axis}[
+		clip=false,
+		hide axis,
+		smooth,
+	]
+"""
+
+			x_bias = 1
+
+			for n in range(self._hops):
+
+				s += """
+\addplot[color=%s,mark=x] coordinates {""" % colors[n]
+
+				coordinates = []
+				texts = []
+
+				for j, negative_j in zip(range(stories.shape[1]), reversed(range(stories.shape[1]))):
+
+					coor = """(%f,%d)""" % (x_bias + probs[i][n][j], negative_j)
+					coordinates.append(coor)
+
+					sent = ' '.join([self.reverse_mapping(stories[i, j, k]) for k in range(stories.shape[2])])
+					texts.append("""\node at (axis cs:-2,%d) [anchor=west] {%s};""" % (negative_j, sent))
+
+				s += '\n'.join(coordinates)
+				s += """
+}"""
+
+				s += '\n'.join(texts)
+
+			s += """
+\end{axis}
+\end{tikzpicture}
+"""
+
+	return s
+
