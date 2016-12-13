@@ -275,50 +275,53 @@ class MemN2N(object):
         Args:
             sentence: List (sentence_size)
         """
+        return [self._reverse_mapping[i] for i in sentence]
 
     def tex_output(self, predictions, probs, stories, queries):
 
-	colors = ['red', 'blue', 'green']
+        colors = ['red', 'blue', 'green']
+
+        s = ""
 
         for i in range(predictions.shape[0]):
 
-			s += """
+            s += """
 \begin{tikzpicture}
-	\begin{axis}[
-		clip=false,
-		hide axis,
-		smooth,
-	]
+    \begin{axis}[
+        clip=false,
+        hide axis,
+        smooth,
+    ]
 """
 
-			x_bias = 1
+            x_bias = 1
 
-			for n in range(self._hops):
+            for n in range(self._hops):
 
-				s += """
+                s += """
 \addplot[color=%s,mark=x] coordinates {""" % colors[n]
 
-				coordinates = []
-				texts = []
+                coordinates = []
+                texts = []
 
-				for j, negative_j in zip(range(stories.shape[1]), reversed(range(stories.shape[1]))):
+                for j, negative_j in zip(range(stories.shape[1]), reversed(range(stories.shape[1]))):
 
-					coor = """(%f,%d)""" % (x_bias + probs[i][n][j], negative_j)
-					coordinates.append(coor)
+                    coor = """(%f,%d)""" % (x_bias + probs[i][n][j], negative_j)
+                    coordinates.append(coor)
 
-					sent = ' '.join([self.reverse_mapping(stories[i, j, k]) for k in range(stories.shape[2])])
-					texts.append("""\node at (axis cs:-2,%d) [anchor=west] {%s};""" % (negative_j, sent))
+                    sent = ' '.join(self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])]))
+                    texts.append("""\node at (axis cs:-2,%d) [anchor=west] {%s};""" % (negative_j, sent))
 
-				s += '\n'.join(coordinates)
-				s += """
+                s += '\n'.join(coordinates)
+                s += """
 }"""
 
-				s += '\n'.join(texts)
+                s += '\n'.join(texts)
 
-			s += """
+            s += """
 \end{axis}
 \end{tikzpicture}
 """
 
-	return s
+        return s
 

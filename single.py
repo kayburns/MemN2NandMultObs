@@ -19,11 +19,11 @@ tf.flags.DEFINE_integer("evaluation_interval", 10, "Evaluate and print results e
 tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
 tf.flags.DEFINE_integer("hops", 3, "Number of hops in the Memory Network.")
 tf.flags.DEFINE_integer("epochs", 200, "Number of epochs to train for.")
-tf.flags.DEFINE_integer("embedding_size", 20, "Embedding size for embedding matrices.")
-tf.flags.DEFINE_integer("memory_size", 50, "Maximum size of memory.")
-tf.flags.DEFINE_integer("task_id", 1, "bAbI task id, 1 <= id <= 20")
+tf.flags.DEFINE_integer("embedding_size", 200, "Embedding size for embedding matrices.")
+tf.flags.DEFINE_integer("memory_size", 512, "Maximum size of memory.")
+tf.flags.DEFINE_integer("task_id", 4, "bAbI task id, 1 <= id <= 20")
 tf.flags.DEFINE_integer("random_state", None, "Random state.")
-tf.flags.DEFINE_string("data_dir", "data/tasks_1-20_v1-2/en/", "Directory containing bAbI tasks")
+tf.flags.DEFINE_string("data_dir", "data/sally_anne/", "Directory containing bAbI tasks")
 FLAGS = tf.flags.FLAGS
 
 print("Started Task:", FLAGS.task_id)
@@ -34,6 +34,7 @@ data = train + test
 
 vocab = sorted(reduce(lambda x, y: x | y, (set(list(chain.from_iterable(s)) + q + a) for s, q, a in data)))
 word_idx = dict((c, i + 1) for i, c in enumerate(vocab))
+reverse_mapping = ['NIL'] + sorted(word_idx.keys(), key=lambda x: word_idx[x])
 
 max_story_size = max(map(len, (s for s, _, _ in data)))
 mean_story_size = int(np.mean([ len(s) for s, _, _ in data ]))
@@ -77,7 +78,7 @@ batches = zip(range(0, n_train-batch_size, batch_size), range(batch_size, n_trai
 batches = [(start, end) for start, end in batches]
 
 with tf.Session() as sess:
-    model = MemN2N(batch_size, vocab_size, sentence_size, memory_size, FLAGS.embedding_size, session=sess,
+    model = MemN2N(batch_size, vocab_size, sentence_size, memory_size, FLAGS.embedding_size, word_idx, reverse_mapping, session=sess,
                    hops=FLAGS.hops, max_grad_norm=FLAGS.max_grad_norm, optimizer=optimizer)
     for t in range(1, FLAGS.epochs+1):
         np.random.shuffle(batches)
