@@ -18,12 +18,12 @@ tf.flags.DEFINE_float("max_grad_norm", 40.0, "Clip gradients to this norm.")
 tf.flags.DEFINE_integer("evaluation_interval", 10, "Evaluate and print results every x epochs")
 tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
 tf.flags.DEFINE_integer("hops", 3, "Number of hops in the Memory Network.")
-tf.flags.DEFINE_integer("epochs", 200, "Number of epochs to train for.")
+tf.flags.DEFINE_integer("epochs", 100, "Number of epochs to train for.")
 tf.flags.DEFINE_integer("embedding_size", 200, "Embedding size for embedding matrices.")
 tf.flags.DEFINE_integer("memory_size", 512, "Maximum size of memory.")
-tf.flags.DEFINE_integer("task_id", 4, "bAbI task id, 1 <= id <= 20")
+tf.flags.DEFINE_integer("task_id", 5, "bAbI task id, 1 <= id <= 20")
 tf.flags.DEFINE_integer("random_state", None, "Random state.")
-tf.flags.DEFINE_string("data_dir", "data/sally_anne/", "Directory containing bAbI tasks")
+tf.flags.DEFINE_string("data_dir", "data/sally_anne/large", "Directory containing bAbI tasks")
 FLAGS = tf.flags.FLAGS
 
 print("Started Task:", FLAGS.task_id)
@@ -96,10 +96,10 @@ with tf.Session() as sess:
                 end = start + batch_size
                 s = trainS[start:end]
                 q = trainQ[start:end]
-                pred = model.predict(s, q)
+                pred, _ = model.predict(s, q)
                 train_preds += list(pred)
 
-            val_preds = model.predict(valS, valQ)
+            val_preds, _ = model.predict(valS, valQ)
             train_acc = metrics.accuracy_score(np.array(train_preds), train_labels)
             val_acc = metrics.accuracy_score(val_preds, val_labels)
 
@@ -110,6 +110,9 @@ with tf.Session() as sess:
             print('Validation Accuracy:', val_acc)
             print('-----------------------')
 
-    test_preds = model.predict(testS, testQ)
+    test_preds, human_readable = model.predict(testS, testQ)
     test_acc = metrics.accuracy_score(test_preds, test_labels)
     print("Testing Accuracy:", test_acc)
+
+    with open('%s_plots.tex' % FLAGS.task_id, 'w') as f:
+        f.write(human_readable)

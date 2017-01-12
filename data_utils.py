@@ -16,6 +16,8 @@ def load_task(data_dir, task_id, only_supporting=False):
     s = 'qa{}_'.format(task_id)
     train_file = [f for f in files if s in f and 'train' in f][0]
     test_file = [f for f in files if s in f and 'test' in f][0]
+    print("Loading train from %s..." % train_file)
+    print("Loading test from %s..." % test_file)
     train_data = get_stories(train_file, only_supporting)
     test_data = get_stories(test_file, only_supporting)
     return train_data, test_data

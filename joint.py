@@ -126,7 +126,6 @@ with tf.Session() as sess:
                 end = start + step
                 s = trainS[start:end]
                 q = trainQ[start:end]
-                import pdb; pdb.set_trace()
                 pred, human_readable = model.predict(s, q)
                 acc = metrics.accuracy_score(pred, train_labels[start:end])
                 train_accs.append(acc)

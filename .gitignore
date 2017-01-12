@@ -2,3 +2,6 @@
 data
 *.md~
 __pycache__
+
+*.tex
+*.csv

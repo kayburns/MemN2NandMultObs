@@ -285,40 +285,66 @@ class MemN2N(object):
 
         for i in range(predictions.shape[0]):
 
-            s += """
+            if i > 0:
+                break
+
+            s += r"""
 \begin{tikzpicture}
     \begin{axis}[
-        clip=false,
+        xmin=-10, xmax=%d,
         hide axis,
         smooth,
     ]
-"""
+""" % (self._hops + 1)
 
-            x_bias = 1
+            x_bias = 1.
 
             for n in range(self._hops):
 
-                s += """
+                s += r"""
 \addplot[color=%s,mark=x] coordinates {""" % colors[n]
 
                 coordinates = []
                 texts = []
 
+                coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] + 1)
+                coordinates.append(coor)
+
+                coords_to_normalize = []
+                axis_coord = []
+
                 for j, negative_j in zip(range(stories.shape[1]), reversed(range(stories.shape[1]))):
 
-                    coor = """(%f,%d)""" % (x_bias + probs[i][n][j], negative_j)
-                    coordinates.append(coor)
+                    reverse = self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])])
+                    sent = ' '.join([x for x in reverse if x != 'NIL'])
 
-                    sent = ' '.join(self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])]))
-                    texts.append("""\node at (axis cs:-2,%d) [anchor=west] {%s};""" % (negative_j, sent))
+                    if not sent:
+                        continue
 
+                    #if len(sent) > 30:
+                        #sent = sent[:30] + '...'
+
+                    texts.append(r"""\node at (axis cs:-10,%d) [anchor=west] {%s};""" % (negative_j, sent.replace('_', ' ')))
+
+                    coords_to_normalize.append(probs[n][i, j])
+                    axis_coord.append(negative_j)
+
+                coords = [x / np.sum(coords_to_normalize + [0.25]) for x in coords_to_normalize]
+                coordinates += [r"""(%.5f,%d)""" % (x_bias + x, y) for x, y in zip(coords, axis_coord)]
+
+                coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] - len(coordinates) - 1)
+                coordinates.append(coor)
+                    
                 s += '\n'.join(coordinates)
-                s += """
-}"""
+                s += r"""
+};"""
 
-                s += '\n'.join(texts)
 
-            s += """
+                x_bias += 1
+
+            s += '\n'.join(texts)
+
+            s += r"""
 \end{axis}
 \end{tikzpicture}
 """
