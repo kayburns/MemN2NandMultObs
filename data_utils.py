@@ -42,34 +42,44 @@ def parse_stories(lines, only_supporting=False):
         nid = int(nid)
         if nid == 1:
             story = []
+            counter = 0
         if '\t' in line: # question
             q, a, supporting = line.split('\t')
+            supporting = map(int, supporting.split())
             q = tokenize(q)
+
             #a = tokenize(a)
             # answer is one vocab word even if it's actually multiple words
             a = [a]
+
             substory = None
 
             # remove question marks
             if q[-1] == "?":
                 q = q[:-1]
 
+            # TODO: no longer works
             if only_supporting:
                 # Only select the related substory
-                supporting = map(int, supporting.split())
                 substory = [story[i - 1] for i in supporting]
+
             else:
                 # Provide all the substories
                 substory = [x for x in story if x]
 
-            data.append((substory, q, a))
+            supporting = [x - counter for x in supporting]
+
+            data.append((substory, q, a, supporting))
+            counter += 1
             story.append('')
+
         else: # regular sentence
             # remove periods
             sent = tokenize(line)
             if sent[-1] == ".":
                 sent = sent[:-1]
             story.append(sent)
+
     return data
 
 
@@ -94,9 +104,12 @@ def vectorize_data(data, word_idx, sentence_size, memory_size):
     S = []
     Q = []
     A = []
-    for story, query, answer in data:
+    L = []
+
+    for story, query, answer, support in data:
         ss = []
         for i, sentence in enumerate(story, 1):
+
             ls = max(0, sentence_size - len(sentence))
             ss.append([word_idx[w] for w in sentence] + [0] * ls)
 
@@ -115,7 +128,14 @@ def vectorize_data(data, word_idx, sentence_size, memory_size):
         for a in answer:
             y[word_idx[a]] = 1
 
+        l = np.zeros(memory_size)
+        for supp in support:
+            if supp <= memory_size:
+                l[supp - 1] = 1
+
         S.append(ss)
         Q.append(q)
         A.append(y)
-    return np.array(S), np.array(Q), np.array(A)
+        L.append(l)
+
+    return np.array(S), np.array(Q), np.array(A), np.array(L)

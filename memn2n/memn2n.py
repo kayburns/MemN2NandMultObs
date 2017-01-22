@@ -201,6 +201,11 @@ class MemN2N(object):
 
                 u.append(u_k)
 
+            self.probs = tf.pack(self.probs, 2)
+
+            # Model attendance to elements of the input
+            self.attendance = tf.argmax(self.probs, 2)
+
             return tf.matmul(u_k, self.W)
 
     def batch_fit(self, stories, queries, answers):
@@ -218,7 +223,7 @@ class MemN2N(object):
         loss, _ = self._sess.run([self.loss_op, self.train_op], feed_dict=feed_dict)
         return loss
 
-    def predict(self, stories, queries):
+    def predict(self, stories, queries, answers, support):
         """Predicts answers as one-hot encoding.
 
         Args:
@@ -235,14 +240,15 @@ class MemN2N(object):
         fetches = [
             self.predict_op,
             self.probs,
+            self.attendance,
             self._stories,
             self._queries,
         ]
 
-        predictions, probs, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
-        tex_output = self.tex_output(predictions, probs, stories, queries)
+        predictions, probs, attendance, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
+        tex_output = self.tex_output(predictions, probs, support, stories, queries, answers)
 
-        return predictions, tex_output
+        return predictions, attendance, tex_output
 
     def predict_proba(self, stories, queries):
         """Predicts probabilities of answers.
@@ -277,18 +283,39 @@ class MemN2N(object):
         """
         return [self._reverse_mapping[i] for i in sentence]
 
-    def tex_output(self, predictions, probs, stories, queries):
+    def tex_output(self, predictions, attendance, probs, stories, queries, answers):
 
-        colors = ['red', 'blue', 'green']
+        colors = [
+            'red', 
+            'blue', 
+            'green',
+            'black',
+            'orange',
+            'purple',
+            'pink',
+            'lime',
+            'cyan',
+            'brown',
+            'darkgray',
+            'gray',
+            'lightgray',
+            'magenta',
+            'olive',
+            'teal',
+            'white',
+            'violet',
+            'yellow',
+        ]
 
         s = ""
 
         for i in range(predictions.shape[0]):
 
-            if i > 0:
+            if i > 10:
                 break
 
             s += r"""
+\begin{figure}[h]
 \begin{tikzpicture}
     \begin{axis}[
         xmin=-10, xmax=%d,
@@ -301,14 +328,16 @@ class MemN2N(object):
 
             for n in range(self._hops):
 
+                #coords_to_normalize.append(probs[n][i, j])
+
                 s += r"""
 \addplot[color=%s,mark=x] coordinates {""" % colors[n]
 
                 coordinates = []
                 texts = []
 
-                coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] + 1)
-                coordinates.append(coor)
+                #coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] + 1)
+                #coordinates.append(coor)
 
                 coords_to_normalize = []
                 axis_coord = []
@@ -318,6 +347,10 @@ class MemN2N(object):
                     reverse = self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])])
                     sent = ' '.join([x for x in reverse if x != 'NIL'])
 
+                    import pdb; pdb.set_trace()
+                    if j == np.argmax(attendance):
+                        sent += '**'
+
                     if not sent:
                         continue
 
@@ -326,14 +359,14 @@ class MemN2N(object):
 
                     texts.append(r"""\node at (axis cs:-10,%d) [anchor=west] {%s};""" % (negative_j, sent.replace('_', ' ')))
 
-                    coords_to_normalize.append(probs[n][i, j])
+                    coords_to_normalize.append(probs[i, j, n])
                     axis_coord.append(negative_j)
 
-                coords = [x / np.sum(coords_to_normalize + [0.25]) for x in coords_to_normalize]
+                coords = [x / np.sum(coords_to_normalize + [0.25]) for x in coords_to_normalize]  # add some smoothing so plot does not overlap
                 coordinates += [r"""(%.5f,%d)""" % (x_bias + x, y) for x, y in zip(coords, axis_coord)]
 
-                coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] - len(coordinates) - 1)
-                coordinates.append(coor)
+                #coor = r"""(%f,%d)""" % (x_bias, stories.shape[1] - len(coordinates) - 1)
+                #coordinates.append(coor)
                     
                 s += '\n'.join(coordinates)
                 s += r"""
@@ -344,10 +377,18 @@ class MemN2N(object):
 
             s += '\n'.join(texts)
 
+            query_sent = ' '.join([x for x in self.reverse_mapping(queries[i]) if x != 'NIL']).replace('_', ' ')
+            prediction_word = self.reverse_mapping([predictions[i]])[0].replace('_', ' ')
+            answer_word = self.reverse_mapping([answers[i]])[0].replace('_', ' ')
+
             s += r"""
 \end{axis}
 \end{tikzpicture}
-"""
+\caption{\textbf{Query:} %s    \textbf{Prediction:} %s    \textbf{Correct answer:} %s}
+\end{figure}
+""" % (query_sent, prediction_word, answer_word)
+
+            #if prediction_word != answer_word
 
         return s
 

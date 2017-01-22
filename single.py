@@ -18,12 +18,13 @@ tf.flags.DEFINE_float("max_grad_norm", 40.0, "Clip gradients to this norm.")
 tf.flags.DEFINE_integer("evaluation_interval", 10, "Evaluate and print results every x epochs")
 tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
 tf.flags.DEFINE_integer("hops", 3, "Number of hops in the Memory Network.")
-tf.flags.DEFINE_integer("epochs", 100, "Number of epochs to train for.")
+tf.flags.DEFINE_integer("epochs", 10, "Number of epochs to train for.")
 tf.flags.DEFINE_integer("embedding_size", 200, "Embedding size for embedding matrices.")
 tf.flags.DEFINE_integer("memory_size", 512, "Maximum size of memory.")
-tf.flags.DEFINE_integer("task_id", 5, "bAbI task id, 1 <= id <= 20")
+tf.flags.DEFINE_integer("task_id", 4, "bAbI task id, 1 <= id <= 20")
 tf.flags.DEFINE_integer("random_state", None, "Random state.")
-tf.flags.DEFINE_string("data_dir", "data/sally_anne/large", "Directory containing bAbI tasks")
+tf.flags.DEFINE_string("data_dir", "data/world_tiny_nex_1000_exitp_0.50_searchp_0.00/", "Directory containing bAbI tasks")
+#tf.flags.DEFINE_string("data_dir", "data/tasks_1-20_v1-2/en/", "Directory containing bAbI tasks")
 FLAGS = tf.flags.FLAGS
 
 print("Started Task:", FLAGS.task_id)
@@ -32,14 +33,14 @@ print("Started Task:", FLAGS.task_id)
 train, test = load_task(FLAGS.data_dir, FLAGS.task_id)
 data = train + test
 
-vocab = sorted(reduce(lambda x, y: x | y, (set(list(chain.from_iterable(s)) + q + a) for s, q, a in data)))
+vocab = sorted(reduce(lambda x, y: x | y, (set(list(chain.from_iterable(s)) + q + a + ['.']) for s, q, a, _ in data)))
 word_idx = dict((c, i + 1) for i, c in enumerate(vocab))
 reverse_mapping = ['NIL'] + sorted(word_idx.keys(), key=lambda x: word_idx[x])
 
-max_story_size = max(map(len, (s for s, _, _ in data)))
-mean_story_size = int(np.mean([ len(s) for s, _, _ in data ]))
-sentence_size = max(map(len, chain.from_iterable(s for s, _, _ in data)))
-query_size = max(map(len, (q for _, q, _ in data)))
+max_story_size = max(map(len, (s for s, _, _, _ in data)))
+mean_story_size = int(np.mean([ len(s) for s, _, _, _ in data ]))
+sentence_size = max(map(len, chain.from_iterable(s for s, _, _, _ in data)))
+query_size = max(map(len, (q for _, q, _, _ in data)))
 memory_size = min(FLAGS.memory_size, max_story_size)
 vocab_size = len(word_idx) + 1 # +1 for nil word
 sentence_size = max(query_size, sentence_size) # for the position
@@ -49,9 +50,10 @@ print("Longest story length", max_story_size)
 print("Average story length", mean_story_size)
 
 # train/validation/test sets
-S, Q, A = vectorize_data(train, word_idx, sentence_size, memory_size)
+S, Q, A, L = vectorize_data(train, word_idx, sentence_size, memory_size)
+# TODO: incorporate support into train/test split
 trainS, valS, trainQ, valQ, trainA, valA = cross_validation.train_test_split(S, Q, A, test_size=.1, random_state=FLAGS.random_state)
-testS, testQ, testA = vectorize_data(test, word_idx, sentence_size, memory_size)
+testS, testQ, testA, testL = vectorize_data(test, word_idx, sentence_size, memory_size)
 
 print(testS[0])
 
@@ -87,6 +89,7 @@ with tf.Session() as sess:
             s = trainS[start:end]
             q = trainQ[start:end]
             a = trainA[start:end]
+            l = trainA[start:end] # TODO
             cost_t = model.batch_fit(s, q, a)
             total_cost += cost_t
 
@@ -96,10 +99,12 @@ with tf.Session() as sess:
                 end = start + batch_size
                 s = trainS[start:end]
                 q = trainQ[start:end]
-                pred, _ = model.predict(s, q)
+                a = train_labels[start:end]
+                l = train_labels[start:end] # TODO
+                pred, _, _ = model.predict(s, q, a, l)
                 train_preds += list(pred)
 
-            val_preds, _ = model.predict(valS, valQ)
+            val_preds, _, _ = model.predict(valS, valQ, val_labels, val_labels) #TODO
             train_acc = metrics.accuracy_score(np.array(train_preds), train_labels)
             val_acc = metrics.accuracy_score(val_preds, val_labels)
 
@@ -110,9 +115,19 @@ with tf.Session() as sess:
             print('Validation Accuracy:', val_acc)
             print('-----------------------')
 
-    test_preds, human_readable = model.predict(testS, testQ)
+    test_preds, test_attendance, human_readable = model.predict(testS, testQ, test_labels, testL)
     test_acc = metrics.accuracy_score(test_preds, test_labels)
     print("Testing Accuracy:", test_acc)
 
+    import pdb; pdb.set_trace()
+    for i in range(FLAGS.hops):
+        test_attendance_acc = metrics.accuracy_score(test_attendance[i], np.argmax(testL, axis=0))
+        print("Testing Accuracy of Attendance at hop %d:" % i, test_attendance_acc)
+
     with open('%s_plots.tex' % FLAGS.task_id, 'w') as f:
+
+        for i in range(FLAGS.hops):
+            test_attendance_acc = metrics.accuracy_score(test_attendance[i], np.argmax(testL, axis=0))
+            f.write("Testing Accuracy of Attendance at hop %d: %.2f\n\n" % (i, test_attendance_acc))
         f.write(human_readable)
+    print("Wrote output to", '%s_plots.tex' % FLAGS.task_id)
