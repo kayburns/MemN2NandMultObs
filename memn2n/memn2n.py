@@ -223,7 +223,7 @@ class MemN2N(object):
         loss, _ = self._sess.run([self.loss_op, self.train_op], feed_dict=feed_dict)
         return loss
 
-    def predict(self, stories, queries, answers, support):
+    def predict(self, stories, queries, answers, support, tex_output=False):
         """Predicts answers as one-hot encoding.
 
         Args:
@@ -246,7 +246,8 @@ class MemN2N(object):
         ]
 
         predictions, probs, attendance, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
-        tex_output = self.tex_output(predictions, probs, support, stories, queries, answers)
+        if tex_output:
+            tex_output = self.tex_output(predictions, support, probs, stories, queries, answers)
 
         return predictions, attendance, tex_output
 
@@ -347,9 +348,9 @@ class MemN2N(object):
                     reverse = self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])])
                     sent = ' '.join([x for x in reverse if x != 'NIL'])
 
-                    import pdb; pdb.set_trace()
-                    if j == np.argmax(attendance):
-                        sent += '**'
+                    #import pdb; pdb.set_trace()
+                    #if i*stories.shape[1] + j == np.argmax(attendance, axis=1):
+                        #sent += '**'
 
                     if not sent:
                         continue

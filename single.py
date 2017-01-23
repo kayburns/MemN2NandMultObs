@@ -21,9 +21,9 @@ tf.flags.DEFINE_integer("hops", 3, "Number of hops in the Memory Network.")
 tf.flags.DEFINE_integer("epochs", 10, "Number of epochs to train for.")
 tf.flags.DEFINE_integer("embedding_size", 200, "Embedding size for embedding matrices.")
 tf.flags.DEFINE_integer("memory_size", 512, "Maximum size of memory.")
-tf.flags.DEFINE_integer("task_id", 4, "bAbI task id, 1 <= id <= 20")
+tf.flags.DEFINE_integer("task_id", 5, "bAbI task id, 1 <= id <= 20")
 tf.flags.DEFINE_integer("random_state", None, "Random state.")
-tf.flags.DEFINE_string("data_dir", "data/world_tiny_nex_1000_exitp_0.50_searchp_0.00/", "Directory containing bAbI tasks")
+tf.flags.DEFINE_string("data_dir", "data/world_large_nex_1000_exitp_0.50_searchp_0.50/", "Directory containing bAbI tasks")
 #tf.flags.DEFINE_string("data_dir", "data/tasks_1-20_v1-2/en/", "Directory containing bAbI tasks")
 FLAGS = tf.flags.FLAGS
 
@@ -115,7 +115,7 @@ with tf.Session() as sess:
             print('Validation Accuracy:', val_acc)
             print('-----------------------')
 
-    test_preds, test_attendance, human_readable = model.predict(testS, testQ, test_labels, testL)
+    test_preds, test_attendance, human_readable = model.predict(testS, testQ, test_labels, testL, tex_output=True)
     test_acc = metrics.accuracy_score(test_preds, test_labels)
     print("Testing Accuracy:", test_acc)
 
