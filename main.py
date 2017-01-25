@@ -8,15 +8,16 @@ from itertools import chain
 import logging
 import os
 from six.moves import range, reduce
-from sklearn import cross_validation, metrics
 import sys
 
-import tensorflow as tf
+import datetime
 import numpy as np
+from sklearn import cross_validation, metrics
+import tensorflow as tf
     
 from data_utils import load_task, vectorize_data
 from memn2n import MemN2N
-from utils import mkdir_p
+from utils import mkdir_p, bow_encoding, position_encoding
 
 
 def load_data(data_dir, task_ids, memory_size, num_caches, random_seed):
@@ -145,7 +146,7 @@ def train_loop(model, train_data, val_data, batch_size, num_epochs, val_freq):
             logging.info('Training Accuracy: %.2f' % train_acc)
             logging.info('Validation Accuracy: %.2f' % val_acc)
 
-def evaluate(model, test_data):
+def evaluate(model, test_data, out_path):
 
     testS, testO, testQ, testA, testL = test_data
     test_labels = np.argmax(testA, axis=1)
@@ -154,21 +155,19 @@ def evaluate(model, test_data):
     logging.info("Testing Size: %d" % n_test)
 
     test_preds, test_probs = model.predict(testS, testO, testQ, test_labels)
+
     test_acc = metrics.accuracy_score(test_preds, test_labels)
     logging.info("Testing Accuracy: %.2f" % test_acc)
 
-    ##TODO
-    #for i in range(FLAGS.hops):
-    #    test_attendance_acc = metrics.accuracy_score(test_attendance[i], np.argmax(testL, axis=0))
-    #    print("Testing Accuracy of Attendance at hop %d:" % i, test_attendance_acc)
+    # TODO deal with observer case
+    test_attendance_accs = []
+    for i in range(test_probs.shape[2]):
+        test_attendance_acc = metrics.accuracy_score(np.argmax(test_probs[:, :, i, 0], axis=1) - 2, np.argmax(testL, axis=1))
+        test_attendance_accs.append(test_attendance_acc)
+        print("Testing Accuracy of Attendance at hop %d:" % i, test_attendance_acc)
+    test_attendance_accs = np.stack(test_attendance_accs)
 
-    #with open('%s_plots.tex' % FLAGS.task_id, 'w') as f:
-
-    #    for i in range(FLAGS.hops):
-    #        test_attendance_acc = metrics.accuracy_score(test_attendance[i], np.argmax(testL, axis=0))
-    #        f.write("Testing Accuracy of Attendance at hop %d: %.2f\n\n" % (i, test_attendance_acc))
-    #    f.write(human_readable)
-    #print("Wrote output to", '%s_plots.tex' % FLAGS.task_id)
+    return test_acc, test_attendance_accs, test_preds, test_probs
 
 
 def parse_args(args):
@@ -192,11 +191,15 @@ def parse_args(args):
                         choices=['position_encoding', 'bow_encoding'],
                         help='The type of encoding to use')
 
+    parser.add_argument('-nl', '--nonlin', type=str, default=None,
+                        choices=['relu'],
+                        help='The type of encoding to use')
+
     parser.add_argument('-te', '--temporal_encoding', dest='temporal_encoding', action='store_true',
                         help='Whether to use the temporal encoding')
 
     parser.add_argument('-dm', '--dim_memory', dest='dim_memory', type=int, 
-                        default=512,
+                        default=50,
                         help='The dimensionality of the memory')
 
     parser.add_argument('-de', '--dim_emb', dest='dim_emb', type=int, 
@@ -207,6 +210,10 @@ def parse_args(args):
                         help='The maximum number of external memory caches')
 
     # TRAINING HYPERPARAMETERS
+    parser.add_argument('-is', '--init_stddev', dest='init_stddev', type=float, 
+                        default=0.1,
+                        help='Initial stddev')
+
     parser.add_argument('-lr', '--learning_rate', dest='learning_rate', type=float, 
                         default=0.01,
                         help='Initial learning rate')
@@ -246,10 +253,22 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
+import subprocess
+
+def get_git_revision_short_hash():
+    return str(subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])).rstrip('\n')
+
+
 def main(args=sys.argv[1:]):
 
     args = parse_args(args)
     logging.basicConfig(level=args.logging, format='%(asctime)s\t%(levelname)-8s\t%(message)s')
+
+    output_path = os.path.join(
+            args.output_dir_path,
+            #'%s_%s' % (get_git_revision_short_hash(), datetime.datetime.now().time().isoformat())
+            datetime.datetime.now().time().isoformat(),
+    )
 
     tf.set_random_seed(args.random_seed)
 
@@ -260,6 +279,19 @@ def main(args=sys.argv[1:]):
             train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, [task_id], args.dim_memory, args.num_caches, args.random_seed)
 
             optimizer = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
+
+            encodings = {
+                'bow_encoding': bow_encoding,
+                'position_encoding': position_encoding,
+            }
+
+            nonlins = {
+                'relu': tf.nn.relu,
+            }
+            if args.nonlin is not None:
+                nonlin = nonlins[args.nonlin]
+            else:
+                nonlin = None
     
             model = MemN2N(args.batch_size, 
                            vocab_size,
@@ -271,6 +303,11 @@ def main(args=sys.argv[1:]):
                            reverse_word_idx,
                            args.num_hops,
                            args.max_grad_norm,
+                           nonlin=nonlin,
+                           optimizer=optimizer,
+                           initializer=tf.random_normal_initializer(stddev=args.init_stddev),
+                           encoding=encodings[args.encoding_type],
+                           temporal_encoding=args.temporal_encoding,
                           )
         
             train_loop(model, 
@@ -280,7 +317,26 @@ def main(args=sys.argv[1:]):
                        args.val_freq
                       )
 
-            evaluate(model, test_data)
+
+
+            test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data, output_path)
+
+            d = {
+                'test_preds': test_preds, 
+                'test_probs': test_probs, 
+                'test_acc': test_acc, 
+                'test_attendance_accs': test_attendance_acc,
+            }
+
+            d.update(**vars(args))
+
+            _, world_size, _, _, _, exit_prob, _, search_prob = args.data_path.split('/')[-2].split('_')
+            d['world_size'] = world_size
+            d['exit_prob'] = float(exit_prob)
+            d['search_prob'] = float(search_prob)
+
+
+            np.save(output_path, d)
 
     else:
         raise NotImplementedError

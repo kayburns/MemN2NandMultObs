@@ -10,6 +10,9 @@ import numpy as np
 from six.moves import range
 
 
+from utils import position_encoding
+
+
 def add_gradient_noise(t, stddev=1e-3, name=None):
     """
     Adds gradient noise as described in http://arxiv.org/abs/1511.06807 [2].
@@ -25,19 +28,6 @@ def add_gradient_noise(t, stddev=1e-3, name=None):
         gn = tf.random_normal(tf.shape(t), stddev=stddev)
         return tf.add(t, gn, name=name)
 
-
-def position_encoding(sentence_size, embedding_size):
-    """
-    Position Encoding described in section 4.1 [1]
-    """
-    encoding = np.ones((embedding_size, sentence_size), dtype=np.float32)
-    ls = sentence_size+1
-    le = embedding_size+1
-    for i in range(1, le):
-        for j in range(1, ls):
-            encoding[i-1, j-1] = (i - (le-1)/2) * (j - (ls-1)/2)
-    encoding = 1 + 4 * encoding / embedding_size / sentence_size
-    return np.transpose(encoding)
 
 
 
@@ -73,6 +63,7 @@ class MemN2N(object):
                  initializer=tf.random_normal_initializer(stddev=0.1),
                  optimizer=tf.train.AdamOptimizer(learning_rate=1e-2),
                  encoding=position_encoding,
+                 temporal_encoding=True,
                  session=tf.Session(),
                  name='MemN2N'
                 ):
