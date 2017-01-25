@@ -182,6 +182,16 @@ def parse_args(args):
                         default=1,
                         help='An integer random seed value')
 
+    parser.add_argument('-ws', '--world_size', dest='world_size', type=int, 
+                        choices=['tiny', 'small', 'large'],
+                        help='An integer random seed value')
+
+    parser.add_argument('-sp', '--search_prob', dest='search_prob', type=float, 
+                        help='An integer random seed value')
+
+    parser.add_argument('-ep', '--exit_prob', dest='exit_prob', type=float, 
+                        help='An integer random seed value')
+
     # MODEL HYPERPARAMETERS
     parser.add_argument('-nh', '--num_hops', dest='num_hops', type=int, 
                         default=3,
@@ -330,13 +340,10 @@ def main(args=sys.argv[1:]):
 
             d.update(**vars(args))
 
-            _, world_size, _, _, _, exit_prob, _, search_prob = args.data_path.split('/')[-2].split('_')
-            d['world_size'] = world_size
-            d['exit_prob'] = float(exit_prob)
-            d['search_prob'] = float(search_prob)
-
 
             np.save(output_path, d)
+
+            tf.reset_default_graph()
 
     else:
         raise NotImplementedError
