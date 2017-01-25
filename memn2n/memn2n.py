@@ -9,6 +9,23 @@ import tensorflow as tf
 import numpy as np
 from six.moves import range
 
+
+def add_gradient_noise(t, stddev=1e-3, name=None):
+    """
+    Adds gradient noise as described in http://arxiv.org/abs/1511.06807 [2].
+
+    The input Tensor `t` should be a gradient.
+
+    The output will be `t` + gaussian noise.
+
+    0.001 was said to be a good fixed value for memory networks [2].
+    """
+    with tf.name_scope(name, "add_gradient_noise", [t, stddev]) as name:
+        t = tf.convert_to_tensor(t, name="t")
+        gn = tf.random_normal(tf.shape(t), stddev=stddev)
+        return tf.add(t, gn, name=name)
+
+
 def position_encoding(sentence_size, embedding_size):
     """
     Position Encoding described in section 4.1 [1]
@@ -22,6 +39,8 @@ def position_encoding(sentence_size, embedding_size):
     encoding = 1 + 4 * encoding / embedding_size / sentence_size
     return np.transpose(encoding)
 
+
+
 def zero_nil_slot(t, name=None):
     """
     Overwrites the nil_slot (first row) of the input Tensor with zeros.
@@ -29,41 +48,34 @@ def zero_nil_slot(t, name=None):
     The nil_slot is a dummy slot and should not be trained and influence
     the training algorithm.
     """
-    with tf.op_scope([t], name, "zero_nil_slot") as name:
+    with tf.name_scope(name, "zero_nil_slot", [t]) as name:
         t = tf.convert_to_tensor(t, name="t")
         s = tf.shape(t)[1]
         z = tf.zeros(tf.pack([1, s]))
         return tf.concat(0, [z, tf.slice(t, [1, 0], [-1, -1])], name=name)
 
-def add_gradient_noise(t, stddev=1e-3, name=None):
-    """
-    Adds gradient noise as described in http://arxiv.org/abs/1511.06807 [2].
-
-    The input Tensor `t` should be a gradient.
-
-    The output will be `t` + gaussian noise.
-
-    0.001 was said to be a good fixed value for memory networks [2].
-    """
-    with tf.op_scope([t, stddev], name, "add_gradient_noise") as name:
-        t = tf.convert_to_tensor(t, name="t")
-        gn = tf.random_normal(tf.shape(t), stddev=stddev)
-        return tf.add(t, gn, name=name)
 
 class MemN2N(object):
     """End-To-End Memory Network."""
-    def __init__(self, batch_size, vocab_size, sentence_size, memory_size, embedding_size,
-        vocab_dict,
-        reverse_mapping,
-        hops=3,
-        max_grad_norm=40.0,
-        nonlin=None,
-        initializer=tf.random_normal_initializer(stddev=0.1),
-        optimizer=tf.train.AdamOptimizer(learning_rate=1e-2),
-        encoding=position_encoding,
-        session=tf.Session(),
-        tex_file='./output.tex',
-        name='MemN2N'):
+
+    def __init__(self, 
+                 batch_size,    
+                 vocab_size,    
+                 sentence_size,     
+                 memory_size,   
+                 num_caches,   
+                 embedding_size,
+                 vocab_dict,
+                 reverse_vocab_dict,
+                 hops=3,
+                 max_grad_norm=40.0,
+                 nonlin=None,
+                 initializer=tf.random_normal_initializer(stddev=0.1),
+                 optimizer=tf.train.AdamOptimizer(learning_rate=1e-2),
+                 encoding=position_encoding,
+                 session=tf.Session(),
+                 name='MemN2N'
+                ):
         """Creates an End-To-End Memory Network
 
         Args:
@@ -103,6 +115,7 @@ class MemN2N(object):
         self._vocab_size = vocab_size
         self._sentence_size = sentence_size
         self._memory_size = memory_size
+        self._num_caches = num_caches
         self._embedding_size = embedding_size
         self._hops = hops
         self._max_grad_norm = max_grad_norm
@@ -112,103 +125,119 @@ class MemN2N(object):
         self._name = name
 
         self._vocab_dict = vocab_dict
-        self._reverse_mapping = reverse_mapping
+        self._reverse_vocab_dict = reverse_vocab_dict
 
         self._build_inputs()
         self._build_vars()
         self._encoding = tf.constant(encoding(self._sentence_size, self._embedding_size), name="encoding")
 
         # cross entropy
-        logits = self._inference(self._stories, self._queries) # (batch_size, vocab_size)
+        logits = self._inference(self._stories, self._observers, self._queries) # (batch_size, vocab_size)
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, tf.cast(self._answers, tf.float32), name="cross_entropy")
         cross_entropy_sum = tf.reduce_sum(cross_entropy, name="cross_entropy_sum")
 
         # loss op
-        loss_op = cross_entropy_sum
+        self.loss_op = loss_op = cross_entropy_sum
 
         # gradient pipeline
         grads_and_vars = self._opt.compute_gradients(loss_op)
-        grads_and_vars = [(tf.clip_by_norm(g, self._max_grad_norm), v) for g,v in grads_and_vars]
-        grads_and_vars = [(add_gradient_noise(g), v) for g,v in grads_and_vars]
+        grads_and_vars = [(tf.clip_by_norm(g, self._max_grad_norm), v) for g, v in grads_and_vars]
+        grads_and_vars = [(add_gradient_noise(g), v) for g, v in grads_and_vars]
         nil_grads_and_vars = []
         for g, v in grads_and_vars:
             if v.name in self._nil_vars:
                 nil_grads_and_vars.append((zero_nil_slot(g), v))
             else:
                 nil_grads_and_vars.append((g, v))
-        train_op = self._opt.apply_gradients(nil_grads_and_vars, name="train_op")
+        self.train_op = train_op = self._opt.apply_gradients(nil_grads_and_vars, name="train_op")
 
         # predict ops
-        predict_op = tf.argmax(logits, 1, name="predict_op")
-        predict_proba_op = tf.nn.softmax(logits, name="predict_proba_op")
-        predict_log_proba_op = tf.log(predict_proba_op, name="predict_log_proba_op")
+        self.predict_op = predict_op = tf.argmax(logits, 1, name="predict_op")
+        self.predict_proba_op = predict_proba_op = tf.nn.softmax(logits, name="predict_proba_op")
+        self.predict_log_proba_op = predict_log_proba_op = tf.log(predict_proba_op, name="predict_log_proba_op")
 
-        # assign ops
-        self.loss_op = loss_op
-        self.predict_op = predict_op
-        self.predict_proba_op = predict_proba_op
-        self.predict_log_proba_op = predict_log_proba_op
-        self.train_op = train_op
-
-        init_op = tf.initialize_all_variables()
+        # Initialize the graph
+        init_op = tf.global_variables_initializer()
         self._sess = session
         self._sess.run(init_op)
 
     def _build_inputs(self):
         self._stories = tf.placeholder(tf.int32, [None, self._memory_size, self._sentence_size], name="stories")
+        self._observers = tf.placeholder(tf.int32, [None, self._memory_size, self._num_caches], name="stories")
         self._queries = tf.placeholder(tf.int32, [None, self._sentence_size], name="queries")
         self._answers = tf.placeholder(tf.int32, [None, self._vocab_size], name="answers")
 
     def _build_vars(self):
         with tf.variable_scope(self._name):
             nil_word_slot = tf.zeros([1, self._embedding_size])
-            A = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size-1, self._embedding_size]) ])
-            B = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size-1, self._embedding_size]) ])
+            A = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+            B = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+            C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+
             self.A = tf.Variable(A, name="A")
             self.B = tf.Variable(B, name="B")
+            self.C = tf.Variable(C, name="C")
 
             self.TA = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TA')
+            self.TC = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TC')
 
             self.H = tf.Variable(self._init([self._embedding_size, self._embedding_size]), name="H")
             self.W = tf.Variable(self._init([self._embedding_size, self._vocab_size]), name="W")
-        self._nil_vars = set([self.A.name, self.B.name])
 
-    def _inference(self, stories, queries):
+        self._nil_vars = set([self.A.name, self.A.name, self.C.name])
+
+    def _inference(self, stories, observers, queries):
+        """
+        Args:
+            stories: Tensor (None, memory_size, sentence_size)
+            observers: Tensor (None, memory_size, num_caches)
+            queries: Tensor (None, sentence_size)
+
+        Returns:
+            TODO
+        """
         with tf.variable_scope(self._name):
-            q_emb = tf.nn.embedding_lookup(self.B, queries)
-            u_0 = tf.reduce_sum(q_emb * self._encoding, 1)
+
+            q_emb = tf.nn.embedding_lookup(self.B, queries)  # B, query embedding matrix
+            u_0 = tf.reduce_sum(q_emb * self._encoding, 1)  # embedded query, shape (None, embedding_size)
+
             u = [u_0]
             self.probs = []
-            for _ in range(self._hops):
-                m_emb = tf.nn.embedding_lookup(self.A, stories)
-                m = tf.reduce_sum(m_emb * self._encoding, 2) + self.TA
-                # hack to get around no reduce_dot
-                u_temp = tf.transpose(tf.expand_dims(u[-1], -1), [0, 2, 1])
-                dotted = tf.reduce_sum(m * u_temp, 2)
 
-                # Calculate probabilities
-                probs = tf.nn.softmax(dotted)
+            def reduce_dot(x, y):
+                z_temp = tf.transpose(tf.expand_dims(x, -1), [0, 2, 1])
+                return tf.reduce_sum(y * z_temp, 2) 
+
+            observer_stories = tf.einsum('ijk,ijl->ijkl', stories, observers)  # observer-masked stories, shape (None, embedding_size, sentence_size, num_caches)
+
+            for _ in range(self._hops):
+
+                m_emb = tf.nn.embedding_lookup(self.A, observer_stories)  # A, memory embedding matrix
+                m = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', m_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TA, 0), 2)  # embedded memory, shape (None, memory_size, num_caches, embedding_size)
+
+                c_emb = tf.nn.embedding_lookup(self.C, observer_stories)  # C, output embedding matrix
+                c = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', c_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TC, 0), 2)  # embedded output, shape (None, memory_size, num_caches, embedding_size)
+
+                dotted = tf.reduce_sum(tf.einsum('il,ijkl->ijkl', u[-1], m), 3)  # u^T m_i = \sum
+                probs = tf.nn.softmax(dotted, dim=1)  # p_i = softmax(u^T m_i), shape (None, memory_size, num_caches)
                 self.probs.append(probs)
 
-                probs_temp = tf.transpose(tf.expand_dims(probs, -1), [0, 2, 1])
-                c_temp = tf.transpose(m, [0, 2, 1])
-                o_k = tf.reduce_sum(c_temp * probs_temp, 2)
+                u_k = tf.matmul(u[-1], self.H)  # u_{k+1} = (u_k)^T H + ...
 
-                u_k = tf.matmul(u[-1], self.H) + o_k
-                # nonlinearity
+                # Sum over memory caches
+                u_k += tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1, 2])  # ... + \sum_j o_jk, shape (None, embedding_size)
+
+                # Nonlinearity
                 if self._nonlin:
-                    u_k = nonlin(u_k)
+                    u_k = self._nonlin(u_k)
 
                 u.append(u_k)
 
             self.probs = tf.pack(self.probs, 2)
 
-            # Model attendance to elements of the input
-            self.attendance = tf.argmax(self.probs, 2)
-
             return tf.matmul(u_k, self.W)
 
-    def batch_fit(self, stories, queries, answers):
+    def batch_fit(self, stories, observers, queries, answers):
         """Runs the training algorithm over the passed batch
 
         Args:
@@ -219,11 +248,16 @@ class MemN2N(object):
         Returns:
             loss: floating-point number, the loss computed for the batch
         """
-        feed_dict = {self._stories: stories, self._queries: queries, self._answers: answers}
+        feed_dict = {
+            self._stories: stories, 
+            self._observers: observers, 
+            self._queries: queries, 
+            self._answers: answers
+        }
         loss, _ = self._sess.run([self.loss_op, self.train_op], feed_dict=feed_dict)
         return loss
 
-    def predict(self, stories, queries, answers, support, tex_output=False):
+    def predict(self, stories, observers, queries, answers):
         """Predicts answers as one-hot encoding.
 
         Args:
@@ -235,21 +269,21 @@ class MemN2N(object):
         """
         feed_dict = {
             self._stories: stories, 
+            self._observers: observers, 
             self._queries: queries,
         }
         fetches = [
             self.predict_op,
             self.probs,
-            self.attendance,
             self._stories,
             self._queries,
         ]
 
-        predictions, probs, attendance, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
-        if tex_output:
-            tex_output = self.tex_output(predictions, support, probs, stories, queries, answers)
+        predictions, probs, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
+        #if tex_output:
+            #tex_output = self.tex_output(predictions, support, probs, stories, queries, answers)
 
-        return predictions, attendance, tex_output
+        return predictions, probs
 
     def predict_proba(self, stories, queries):
         """Predicts probabilities of answers.
@@ -276,13 +310,13 @@ class MemN2N(object):
         feed_dict = {self._stories: stories, self._queries: queries}
         return self._sess.run(self.predict_log_proba_op, feed_dict=feed_dict)
 
-    def reverse_mapping(self, sentence):
+    def reverse_vocab_dict(self, sentence):
         """Returns a sequence of word tokens from a list of integers.
  
         Args:
             sentence: List (sentence_size)
         """
-        return [self._reverse_mapping[i] for i in sentence]
+        return [self._reverse_vocab_dict[i] for i in sentence]
 
     def tex_output(self, predictions, attendance, probs, stories, queries, answers):
 

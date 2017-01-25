@@ -1,26 +1,27 @@
 from __future__ import absolute_import
 
+import logging
 import os
 import re
 import numpy as np
 
+
 def load_task(data_dir, task_id, only_supporting=False):
-    '''Load the nth task. There are 20 tasks in total.
+    '''Load the nth task.
 
     Returns a tuple containing the training and testing data for the task.
     '''
-    #assert task_id > 0 and task_id < 21
-
     files = os.listdir(data_dir)
     files = [os.path.join(data_dir, f) for f in files]
     s = 'qa{}_'.format(task_id)
     train_file = [f for f in files if s in f and 'train' in f][0]
     test_file = [f for f in files if s in f and 'test' in f][0]
-    print("Loading train from %s..." % train_file)
-    print("Loading test from %s..." % test_file)
+    logging.info("Loading train from %s..." % train_file)
+    logging.info("Loading test from %s..." % test_file)
     train_data = get_stories(train_file, only_supporting)
     test_data = get_stories(test_file, only_supporting)
     return train_data, test_data
+
 
 def tokenize(sent):
     '''Return the tokens of a sentence including punctuation.
@@ -36,29 +37,34 @@ def parse_stories(lines, only_supporting=False):
     '''
     data = []
     story = []
+
     for line in lines:
+
         line = str.lower(line)
         nid, line = line.split(' ', 1)
         nid = int(nid)
+
         if nid == 1:
             story = []
-            counter = 0
-        if '\t' in line: # question
+            substory_counter = 0
+
+        if '?' in line:  # question
+
+            if not story:
+                raise Exception
+
             q, a, supporting = line.split('\t')
             supporting = map(int, supporting.split())
+
+            # Remove question marks
+            q = q.replace("?", "")
             q = tokenize(q)
 
-            #a = tokenize(a)
-            # answer is one vocab word even if it's actually multiple words
+            # Answer is one vocab word even if it's actually multiple words
             a = [a]
 
             substory = None
 
-            # remove question marks
-            if q[-1] == "?":
-                q = q[:-1]
-
-            # TODO: no longer works
             if only_supporting:
                 # Only select the related substory
                 substory = [story[i - 1] for i in supporting]
@@ -67,18 +73,29 @@ def parse_stories(lines, only_supporting=False):
                 # Provide all the substories
                 substory = [x for x in story if x]
 
-            supporting = [x - counter for x in supporting]
+            # Extract the observer information
+            substory, observers = zip(*substory)
 
-            data.append((substory, q, a, supporting))
-            counter += 1
+            supporting = [x - substory_counter for x in supporting]
+
+            data.append((substory, observers, q, a, supporting))
+            substory_counter += 1
             story.append('')
 
-        else: # regular sentence
+        else:  # story line
+            
+            # Check for observer labels
+            try:
+                line, observers = line.split('\t')
+                observers = map(int, observers.split())
+            except ValueError:
+                observers = None
+
             # remove periods
             sent = tokenize(line)
             if sent[-1] == ".":
                 sent = sent[:-1]
-            story.append(sent)
+            story.append((sent, observers))
 
     return data
 
@@ -90,7 +107,8 @@ def get_stories(f, only_supporting=False):
     with open(f) as f:
         return parse_stories(f.readlines(), only_supporting=only_supporting)
 
-def vectorize_data(data, word_idx, sentence_size, memory_size):
+
+def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
     """
     Vectorize stories and queries.
 
@@ -102,11 +120,14 @@ def vectorize_data(data, word_idx, sentence_size, memory_size):
     The answer array is returned as a one-hot encoding.
     """
     S = []
+    O = []
     Q = []
     A = []
     L = []
 
-    for story, query, answer, support in data:
+    for story, observers, query, answer, support in data:
+
+        # STORY LINES
         ss = []
         for i, sentence in enumerate(story, 1):
 
@@ -121,21 +142,35 @@ def vectorize_data(data, word_idx, sentence_size, memory_size):
         for _ in range(lm):
             ss.append([0] * sentence_size)
 
+        # OBSERVER FLAGS
+        observers = observers[::-1][:memory_size][::-1]
+        o = np.zeros((memory_size, num_caches))
+        for i, x in enumerate(observers):
+            o[i, 0] = 1  # the oracle observer
+            if x is not None:
+                for j in x:
+                    assert j > 0 and j < self.num_caches
+                    o[i, j] = 1
+
+        # QUERIES
         lq = max(0, sentence_size - len(query))
         q = [word_idx[w] for w in query] + [0] * lq
 
+        # ANSWERS
         y = np.zeros(len(word_idx) + 1) # 0 is reserved for nil word
         for a in answer:
             y[word_idx[a]] = 1
 
+        # SUPPORTING SENTENCES
         l = np.zeros(memory_size)
         for supp in support:
             if supp <= memory_size:
                 l[supp - 1] = 1
 
         S.append(ss)
+        O.append(o)
         Q.append(q)
         A.append(y)
         L.append(l)
 
-    return np.array(S), np.array(Q), np.array(A), np.array(L)
+    return np.array(S), np.array(O), np.array(Q), np.array(A), np.array(L)
