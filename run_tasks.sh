@@ -1,59 +1,46 @@
 #!/bin/bash
 
-ENCODING_TYPES="position_encoding"
-NUMS_HOPS="1 2 3 4 5"
-NONLINS="relu"
-DIMS_MEMORY="20 50 100"
-DIMS_EMB="10 20 50 100"
-NUMS_CACHES=1
-INITS_STDDEV=0.1
-LEARNING_RATES="0.1 0.01 0.001"
-MAX_GRAD_NORMS=40
-WORLD_SIZES="large"
-SEARCH_PROBS="0.00 0.50 1.00"
-EXIT_PROBS="0.00 0.50 1.00"
+GPU_IDS=( 0 1 2 )
+NUM_SIMS=10
 
-for WORLD_SIZE in $WORLD_SIZES; do
-for NONLIN in $NONLINS; do
-for NUM_HOPS in $NUMS_HOPS; do
-for ENCODING_TYPE in $ENCODING_TYPES; do
-for DIM_MEMORY in $DIMS_MEMORY; do
-for DIM_EMB in $DIMS_EMB; do
-for NUM_CACHES in $NUMS_CACHES; do
-for INIT_STDDEV in $INITS_STDDEV; do
-for LEARNING_RATE in $LEARNING_RATES; do
-for MAX_GRAD_NORM in $MAX_GRAD_NORMS; do
-for EXIT_PROB in $EXIT_PROBS; do
-for SEARCH_PROB in $SEARCH_PROBS; do
-for TASK_ID in 2 3 4 5; do
+ENCODING_TYPE_OPTS="position_encoding"
+NUM_HOPS_OPTS="1 2 3 4 5"
+NONLIN_OPTS="relu"
+DIM_MEMORY_OPTS="10 20 50 100"
+DIM_EMB_OPTS="10 20 50 100"
+NUM_CACHES_OPTS=1
+INIT_STDDEV_OPTS=0.1
+LEARNING_RATE_OPTS="0.1 0.01 0.001"
+MAX_GRAD_NORM_OPTS=40
+WORLD_SIZE_OPTS="large small tiny"
+SEARCH_PROB_OPTS="0.00 0.50 1.00"
+EXIT_PROB_OPTS="0.00 0.50 1.00"
+TASK_ID_OPTS="1 2 3 4 5"
 
-DATA_PATH="data/sally_anne/world_${WORLD_SIZE}_nex_1000_exitp_${EXIT_PROB}_searchp_${SEARCH_PROB}"
-
-python main.py \
--nh $NUM_HOPS \
--nl $NONLIN \
--et $ENCODING_TYPE \
--dm $DIM_MEMORY \
--de $DIM_EMB \
--nc $NUM_CACHES \
--is $INIT_STDDEV \
--lr $LEARNING_RATE \
--gn $MAX_GRAD_NORM \
--te \
--ne 100 \
--t $TASK_ID \
--d $DATA_PATH
-
-done
-done
-done
-done
-done
-done
-done
-done
-done
-done
-done
-done
-done
+parallel -j ${#GPU_IDS[@]} 'export CUDA_VISIBLE_DEVICES=$(({%} - 1)) &&\
+python main.py -te -ne 100 \
+-nh {1} \
+-nl {2} \
+-et {3} \
+-dm {4} \
+-de {5} \
+-nc {6} \
+-is {7} \
+-lr {8} \
+-gn {9} \
+-t {10} \
+-d data/sally_anne/world_{11}_nex_1000_exitp_{12}_searchp_{13}' \
+::: $NUM_HOPS_OPTS \
+::: $NONLIN_OPTS \
+::: $ENCODING_TYPE_OPTS \
+::: $DIM_MEMORY_OPTS \
+::: $DIM_EMB_OPTS \
+::: $NUM_CACHES_OPTS \
+::: $INIT_STDDEV_OPTS \
+::: $LEARNING_RATE_OPTS \
+::: $MAX_GRAD_NORM_OPTS \
+::: $TASK_ID_OPTS \
+::: $WORLD_SIZE_OPTS \
+::: $SEARCH_PROB_OPTS \
+::: $EXIT_PROB_OPTS \
+::: {1..$NUM_SIMS}

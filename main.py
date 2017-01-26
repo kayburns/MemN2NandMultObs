@@ -3,11 +3,13 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+
 import argparse
 from itertools import chain
 import logging
 import os
 from six.moves import range, reduce
+import subprocess
 import sys
 
 import datetime
@@ -146,6 +148,7 @@ def train_loop(model, train_data, val_data, batch_size, num_epochs, val_freq):
             logging.info('Training Accuracy: %.2f' % train_acc)
             logging.info('Validation Accuracy: %.2f' % val_acc)
 
+
 def evaluate(model, test_data, out_path):
 
     testS, testO, testQ, testA, testL = test_data
@@ -262,8 +265,6 @@ def parse_args(args):
 
     return parser.parse_args(args)
 
-
-import subprocess
 
 def get_git_revision_short_hash():
     return str(subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])).rstrip('\n')
