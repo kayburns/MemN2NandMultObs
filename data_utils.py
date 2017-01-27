@@ -160,12 +160,12 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
                         observer_flag_unused = True
 
         if num_caches > 1 and not observer_flag_present:
-            logging.warning('Observer flags not present but number of caches > 1.')
+            logging.debug('Observer flags not present but number of caches > 1.')
             o = np.ones((memory_size, num_caches))
             observer_flag_unused = False
 
         if observer_flag_unused:
-            logging.warning('Observer flags present but unused.')
+            logging.debug('Observer flags present but unused.')
             o = np.ones((memory_size, num_caches))
 
         # QUERIES
