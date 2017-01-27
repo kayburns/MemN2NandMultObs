@@ -29,8 +29,6 @@ def add_gradient_noise(t, stddev=1e-3, name=None):
         return tf.add(t, gn, name=name)
 
 
-
-
 def zero_nil_slot(t, name=None):
     """
     Overwrites the nil_slot (first row) of the input Tensor with zeros.
@@ -60,6 +58,7 @@ class MemN2N(object):
                  hops=3,
                  max_grad_norm=40.0,
                  nonlin=None,
+                 share_type='adjacent',
                  initializer=tf.random_normal_initializer(stddev=0.1),
                  optimizer=tf.train.AdamOptimizer(learning_rate=1e-2),
                  encoding=position_encoding,
@@ -119,11 +118,11 @@ class MemN2N(object):
         self._reverse_vocab_dict = reverse_vocab_dict
 
         self._build_inputs()
-        self._build_vars()
+        self._build_vars(share_type)
         self._encoding = tf.constant(encoding(self._sentence_size, self._embedding_size), name="encoding")
 
         # cross entropy
-        logits = self._inference(self._stories, self._observers, self._queries) # (batch_size, vocab_size)
+        logits = self._inference(self._stories, self._observers, self._queries, share_type) # (batch_size, vocab_size)
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, tf.cast(self._answers, tf.float32), name="cross_entropy")
         cross_entropy_sum = tf.reduce_sum(cross_entropy, name="cross_entropy_sum")
 
@@ -158,26 +157,78 @@ class MemN2N(object):
         self._queries = tf.placeholder(tf.int32, [None, self._sentence_size], name="queries")
         self._answers = tf.placeholder(tf.int32, [None, self._vocab_size], name="answers")
 
-    def _build_vars(self):
+    def _build_vars(self, share_type):
         with tf.variable_scope(self._name):
+
             nil_word_slot = tf.zeros([1, self._embedding_size])
-            A = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
-            B = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
-            C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
-
-            self.A = tf.Variable(A, name="A")
-            self.B = tf.Variable(B, name="B")
-            self.C = tf.Variable(C, name="C")
-
-            self.TA = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TA')
-            self.TC = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TC')
 
             self.H = tf.Variable(self._init([self._embedding_size, self._embedding_size]), name="H")
             self.W = tf.Variable(self._init([self._embedding_size, self._vocab_size]), name="W")
 
-        self._nil_vars = set([self.A.name, self.A.name, self.C.name])
+            self.A = []
+            self.C = []
 
-    def _inference(self, stories, observers, queries):
+            self.TA = []
+            self.TC = []
+
+            B = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+            self.B = tf.Variable(B, name="B")
+
+            if share_type == 'adjacent':
+
+                self.A += [self.B]
+                self.TA += [tf.zeros([self._memory_size, self._embedding_size])]  # unclear in the paper to what this matrix is tied
+
+                C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+                self.C += [tf.Variable(C, name="C_0")]
+
+                TC = self._init([self._memory_size, self._embedding_size])
+                self.TC += [tf.Variable(TC, name='TC_0')]
+
+                for i in range(1, self._hops - 1):
+
+                    self.A += [self.C[-1]]
+                    self.TA += [self.TC[-1]]
+
+                    C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+                    self.C += [tf.Variable(C, name="C_%d" % i)]
+
+                    TC = self._init([self._memory_size, self._embedding_size])
+                    self.TC += [tf.Variable(TC, name='TC_%d' % i)]
+
+                if self._hops > 1:
+                    self.A += [self.C[-1]]
+                    self.TA += [self.TC[-1]]
+
+                    self.C += [tf.transpose(self.W, [1, 0])]
+                    #self.TC += [tf.Variable(TC), name='TC_%d' % i)]  
+                    self.TC += [tf.zeros([self._memory_size, self._embedding_size])]  # unclear in the paper to what this matrix is tied
+
+            elif share_type == 'layerwise':
+
+                A = tf.Variable(tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ]))
+                C = tf.Variable(tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ]))
+
+                self.A = [A * self._hops]
+                self.C = [C * self._hops]
+
+                TA = tf.Variable(self._init([self._memory_size, self._embedding_size], name='TA'))
+                TC = tf.Variable(self._init([self._memory_size, self._embedding_size], name='TC'))
+
+                self.TA = [TA * self._hops]
+                self.TC = [TC * self._hops]
+
+            else:
+                raise NotImplementedError
+
+            assert len(self.A) == self._hops
+            assert len(self.TA) == self._hops
+            assert len(self.C) == self._hops
+            assert len(self.TC) == self._hops
+
+        self._nil_vars = set([a.name for a in self.A] + [c.name for c in self.C])
+
+    def _inference(self, stories, observers, queries, share_type):
         """
         Args:
             stories: Tensor (None, memory_size, sentence_size)
@@ -195,19 +246,15 @@ class MemN2N(object):
             u = [u_0]
             self.probs = []
 
-            def reduce_dot(x, y):
-                z_temp = tf.transpose(tf.expand_dims(x, -1), [0, 2, 1])
-                return tf.reduce_sum(y * z_temp, 2) 
-
             observer_stories = tf.einsum('ijk,ijl->ijkl', stories, observers)  # observer-masked stories, shape (None, embedding_size, sentence_size, num_caches)
 
-            for _ in range(self._hops):
+            for i in range(self._hops):
 
-                m_emb = tf.nn.embedding_lookup(self.A, observer_stories)  # A, memory embedding matrix
-                m = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', m_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TA, 0), 2)  # embedded memory, shape (None, memory_size, num_caches, embedding_size)
+                m_emb = tf.nn.embedding_lookup(self.A[i], observer_stories)  # A, memory embedding matrix
+                m = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', m_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TA[i], 0), 2)  # embedded memory, shape (None, memory_size, num_caches, embedding_size)
 
-                c_emb = tf.nn.embedding_lookup(self.C, observer_stories)  # C, output embedding matrix
-                c = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', c_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TC, 0), 2)  # embedded output, shape (None, memory_size, num_caches, embedding_size)
+                c_emb = tf.nn.embedding_lookup(self.C[i], observer_stories)  # C, output embedding matrix
+                c = tf.reduce_sum(tf.einsum('ijklm,km->ijklm', c_emb, self._encoding), 2) + tf.expand_dims(tf.expand_dims(self.TC[i], 0), 2)  # embedded output, shape (None, memory_size, num_caches, embedding_size)
 
                 dotted = tf.reduce_sum(tf.einsum('il,ijkl->ijkl', u[-1], m), 3)  # u^T m_i = \sum
                 probs = tf.nn.softmax(dotted, dim=1)  # p_i = softmax(u^T m_i), shape (None, memory_size, num_caches)
@@ -224,7 +271,7 @@ class MemN2N(object):
 
                 u.append(u_k)
 
-            self.probs = tf.pack(self.probs, 2)
+            self.probs = tf.pack(self.probs, 3)
 
             return tf.matmul(u_k, self.W)
 
@@ -271,8 +318,6 @@ class MemN2N(object):
         ]
 
         predictions, probs, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
-        #if tex_output:
-            #tex_output = self.tex_output(predictions, support, probs, stories, queries, answers)
 
         return predictions, probs
 
