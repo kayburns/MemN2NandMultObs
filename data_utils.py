@@ -160,7 +160,6 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
                         observer_flag_unused = True
 
         if num_caches > 1 and not observer_flag_present:
-            import pdb; pdb.set_trace()
             logging.warning('Observer flags not present but number of caches > 1.')
             o = np.ones((memory_size, num_caches))
             observer_flag_unused = False
