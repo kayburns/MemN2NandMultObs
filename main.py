@@ -344,6 +344,7 @@ def main(args=sys.argv[1:]):
                 'test_probs': test_probs, 
                 'test_acc': test_acc, 
                 'test_attendance_accs': test_attendance_acc,
+                'vocab_dict': word_idx,
             }
 
             d.update(**vars(args))
