@@ -21,6 +21,8 @@ from data_utils import load_task, vectorize_data
 from memn2n import MemN2N
 from utils import mkdir_p, bow_encoding, position_encoding
 
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
 
 def load_data(data_dir, task_ids, memory_size, num_caches, random_seed):
 
@@ -125,7 +127,7 @@ def train_loop(model, train_data, val_data, batch_size, num_epochs, val_freq):
             cost_t = model.batch_fit(s, o, q, a)
             total_cost += cost_t
 
-        if t % val_freq == 0:
+        if val_freq is not None and t % val_freq == 0:
 
             train_preds = []
             for start in range(0, n_train, batch_size):
@@ -164,10 +166,13 @@ def evaluate(model, test_data, out_path):
 
     # TODO deal with observer case
     test_attendance_accs = []
-    for i in range(test_probs.shape[2]):
-        test_attendance_acc = metrics.accuracy_score(np.argmax(test_probs[:, :, i, 0], axis=1) - 2, np.argmax(testL, axis=1))
-        test_attendance_accs.append(test_attendance_acc)
-        print("Testing Accuracy of Attendance at hop %d:" % i, test_attendance_acc)
+    for i in range(test_probs.shape[3]):
+        test_attendance_inner_accs = []
+        for j in range(test_probs.shape[2]):
+            test_attendance_acc = metrics.accuracy_score(np.argmax(test_probs[:, :, j, i], axis=1), np.argmax(testL, axis=1))
+            test_attendance_inner_accs.append(test_attendance_acc)
+            print("Testing Accuracy of Attendance at hop %d for observer %d:" % (i, j), test_attendance_acc)
+        test_attendance_accs += [np.stack(test_attendance_inner_accs)]
     test_attendance_accs = np.stack(test_attendance_accs)
 
     return test_acc, test_attendance_accs, test_preds, test_probs
@@ -185,16 +190,6 @@ def parse_args(args):
                         default=1,
                         help='An integer random seed value')
 
-    parser.add_argument('-ws', '--world_size', dest='world_size', type=int, 
-                        choices=['tiny', 'small', 'large'],
-                        help='An integer random seed value')
-
-    parser.add_argument('-sp', '--search_prob', dest='search_prob', type=float, 
-                        help='An integer random seed value')
-
-    parser.add_argument('-ep', '--exit_prob', dest='exit_prob', type=float, 
-                        help='An integer random seed value')
-
     # MODEL HYPERPARAMETERS
     parser.add_argument('-nh', '--num_hops', dest='num_hops', type=int, 
                         default=3,
@@ -203,6 +198,10 @@ def parse_args(args):
     parser.add_argument('-et', '--encoding_type', type=str, default='position_encoding',
                         choices=['position_encoding', 'bow_encoding'],
                         help='The type of encoding to use')
+
+    parser.add_argument('-st', '--share_type', type=str, default='adjacent',
+                        choices=['adjacent', 'layerwise'],
+                        help='The type of weight tying')
 
     parser.add_argument('-nl', '--nonlin', type=str, default=None,
                         choices=['relu'],
@@ -240,7 +239,7 @@ def parse_args(args):
                         help='Number of examples in each minibatch')
 
     parser.add_argument('-vf', '--val_freq', dest='val_freq', type=int, 
-                        default=10,
+                        default=None,
                         help='Validate the model every vf epochs')
 
     parser.add_argument('-ne', '--num_epochs', dest='num_epochs', type=int, 
@@ -262,6 +261,16 @@ def parse_args(args):
     parser.add_argument('-o', '--output_dir_path', dest='output_dir_path', type=mkdir_p,
                         default='results',
                         help='Output directory path')
+
+    parser.add_argument('-ws', '--world_size', dest='world_size', type=int, 
+                        choices=['tiny', 'small', 'large'],
+                        help='TODO')
+
+    parser.add_argument('-sp', '--search_prob', dest='search_prob', type=float, 
+                        help='TODO')
+
+    parser.add_argument('-ep', '--exit_prob', dest='exit_prob', type=float, 
+                        help='TODO')
 
     return parser.parse_args(args)
 
@@ -328,8 +337,6 @@ def main(args=sys.argv[1:]):
                        args.val_freq
                       )
 
-
-
             test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data, output_path)
 
             d = {
@@ -340,7 +347,6 @@ def main(args=sys.argv[1:]):
             }
 
             d.update(**vars(args))
-
 
             np.save(output_path, d)
 
