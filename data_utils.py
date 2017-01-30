@@ -186,7 +186,10 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
         l = np.zeros(memory_size)
         for supp in support:
             if supp <= memory_size:
-                l[supp - 1] = 1
+                try:
+                    l[supp - 1] = 1
+                except Error:
+                    pass
 
         S.append(ss)
         O.append(o)
