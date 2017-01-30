@@ -351,10 +351,10 @@ def main(args=sys.argv[1:]):
                         test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
 
                         d.update({
-                            '%s_test_preds' % f: test_preds, 
-                            '%s_test_probs' % f: test_probs, 
-                            '%s_test_acc' % f: test_acc, 
-                            '%s_test_attendance_accs' % f: test_attendance_acc,
+                            '%s_test_preds' % os.path.basename(f): test_preds, 
+                            '%s_test_probs' % os.path.basename(f): test_probs, 
+                            '%s_test_acc' % os.path.basename(f): test_acc, 
+                            '%s_test_attendance_accs' % os.path.basename(f): test_attendance_acc,
                         })
 
                     vars_args = vars(args)
@@ -362,7 +362,7 @@ def main(args=sys.argv[1:]):
                     vars_args['task_ids'] = task_id
                     d.update(**vars_args)
 
-                    np.save(output_path, d)
+                    np.save(output_path + '_%d' % task_id, d)
 
     else:
 
