@@ -6,21 +6,25 @@ import re
 import numpy as np
 
 
-def load_task(data_dir, task_id, only_supporting=False):
+def load_task(data_dir, task_id, only_supporting=False, load_test=False):
     '''Load the nth task.
 
     Returns a tuple containing the training and testing data for the task.
     '''
     files = os.listdir(data_dir)
     files = [os.path.join(data_dir, f) for f in files]
-    s = 'qa{}_'.format(task_id)
-    train_file = [f for f in files if s in f and 'train' in f][0]
-    test_file = [f for f in files if s in f and 'test' in f][0]
-    logging.info("Loading train from %s..." % train_file)
-    logging.info("Loading test from %s..." % test_file)
-    train_data = get_stories(train_file, only_supporting)
-    test_data = get_stories(test_file, only_supporting)
-    return train_data, test_data
+
+    if load_test:
+        test_files = [f for f in files if 'test' in f]  # load all test files
+        logging.info("Loading test from %s..." % str(test_files))
+        test_data = {f: get_stories(f, only_supporting) for f in test_files}
+        return test_data
+    else:
+        s = 'qa{}_'.format(task_id)
+        train_file = [f for f in files if s in f and 'train' in f][0]
+        logging.info("Loading train from %s..." % train_file)
+        train_data = get_stories(train_file, only_supporting)
+        return train_data
 
 
 def tokenize(sent):
@@ -124,6 +128,7 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
     Q = []
     A = []
     L = []
+
 
     for story, observers, query, answer, support in data:
 

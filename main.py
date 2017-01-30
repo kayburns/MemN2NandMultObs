@@ -27,11 +27,12 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 def load_data(data_dir, task_ids, memory_size, num_caches, random_seed):
 
     # Load all train and test data
-    train, test = [], []
+    train = []
     for i in task_ids:
-        tr, te = load_task(data_dir, i)
+        tr = load_task(data_dir, i)
         train.append(tr)
-        test.append(te)
+    te = load_task(data_dir, None, load_test=True)
+    test = list(te.values())
     data = list(chain.from_iterable(train + test))
 
     vocab = sorted(reduce(lambda x, y: x | y, (set(list(chain.from_iterable(s)) + q + a + ['.']) for s, _, q, a, _ in data)))
@@ -86,13 +87,14 @@ def load_data(data_dir, task_ids, memory_size, num_caches, random_seed):
     valA = reduce(lambda a, b : np.vstack((a, b)), (x for x in valA))
     valL = reduce(lambda a, b : np.vstack((a, b)), (x for x in valL))
     
-    testS, testO, testQ, testA, testL = vectorize_data(list(chain.from_iterable(test)), word_idx, sentence_size, memory_size, num_caches)
+    test_data = {}
+    for f in te:
+        test_data[f] = vectorize_data(te[f], word_idx, sentence_size, memory_size, num_caches)
     
     logging.info("Training set shape: %s" % str(trainS.shape))
     
     train_data = trainS, trainO, trainQ, trainA, trainL
     val_data = valS, valO, valQ, valA, valL
-    test_data = testS, testO, testQ, testA, testL
 
     return train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size
 
@@ -290,71 +292,127 @@ def main(args=sys.argv[1:]):
             datetime.datetime.now().time().isoformat(),
     )
 
+    optimizer = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
+
+    encodings = {
+        'bow_encoding': bow_encoding,
+        'position_encoding': position_encoding,
+    }
+
+    nonlins = {
+        'relu': tf.nn.relu,
+    }
+    if args.nonlin is not None:
+        nonlin = nonlins[args.nonlin]
+    else:
+        nonlin = None
+
     tf.set_random_seed(args.random_seed)
 
     if not args.joint:
 
         for task_id in args.task_ids:
 
-            train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, [task_id], args.dim_memory, args.num_caches, args.random_seed)
+            with tf.Graph().as_default():
 
-            optimizer = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
+                with tf.Session(graph=tf.get_default_graph()) as sess:
 
-            encodings = {
-                'bow_encoding': bow_encoding,
-                'position_encoding': position_encoding,
-            }
+                    train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, [task_id], args.dim_memory, args.num_caches, args.random_seed)
 
-            nonlins = {
-                'relu': tf.nn.relu,
-            }
-            if args.nonlin is not None:
-                nonlin = nonlins[args.nonlin]
-            else:
-                nonlin = None
-    
-            model = MemN2N(args.batch_size, 
-                           vocab_size,
-                           sentence_size,
-                           memory_size,
-                           args.num_caches,
-                           args.dim_emb,
-                           word_idx,
-                           reverse_word_idx,
-                           args.num_hops,
-                           args.max_grad_norm,
-                           nonlin=nonlin,
-                           optimizer=optimizer,
-                           initializer=tf.random_normal_initializer(stddev=args.init_stddev),
-                           encoding=encodings[args.encoding_type],
-                           temporal_encoding=args.temporal_encoding,
-                          )
-        
-            train_loop(model, 
-                       train_data, val_data,
-                       args.batch_size, 
-                       args.num_epochs, 
-                       args.val_freq
-                      )
+                    model = MemN2N(args.batch_size, 
+                                   vocab_size,
+                                   sentence_size,
+                                   memory_size,
+                                   args.num_caches,
+                                   args.dim_emb,
+                                   word_idx,
+                                   reverse_word_idx,
+                                   args.num_hops,
+                                   args.max_grad_norm,
+                                   share_type=args.share_type,
+                                   nonlin=nonlin,
+                                   optimizer=optimizer,
+                                   initializer=tf.random_normal_initializer(stddev=args.init_stddev),
+                                   encoding=encodings[args.encoding_type],
+                                   temporal_encoding=args.temporal_encoding,
+                                   session=sess,
+                                  )
+                
+                    train_loop(model, 
+                               train_data, val_data,
+                               args.batch_size, 
+                               args.num_epochs, 
+                               args.val_freq
+                              )
 
-            test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data, output_path)
+                    d = {'vocab_dict': word_idx}
 
-            d = {
-                'test_preds': test_preds, 
-                'test_probs': test_probs, 
-                'test_acc': test_acc, 
-                'test_attendance_accs': test_attendance_acc,
-                'vocab_dict': word_idx,
-            }
+                    for f in test_data:
+                        test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
 
-            d.update(**vars(args))
+                        d.update({
+                            '%s_test_preds' % f: test_preds, 
+                            '%s_test_probs' % f: test_probs, 
+                            '%s_test_acc' % f: test_acc, 
+                            '%s_test_attendance_accs' % f: test_attendance_acc,
+                        })
 
-            np.save(output_path, d)
+                    vars_args = vars(args)
+                    del vars_args['task_ids']
+                    vars_args['task_ids'] = task_id
+                    d.update(**vars_args)
 
-            tf.reset_default_graph()
+                    np.save(output_path, d)
 
     else:
-        raise NotImplementedError
+
+        with tf.Graph().as_default():
+
+            with tf.Session(graph=tf.get_default_graph()) as sess:
+
+                train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, args.task_ids, args.dim_memory, args.num_caches, args.random_seed)
+
+                model = MemN2N(args.batch_size, 
+                               vocab_size,
+                               sentence_size,
+                               memory_size,
+                               args.num_caches,
+                               args.dim_emb,
+                               word_idx,
+                               reverse_word_idx,
+                               args.num_hops,
+                               args.max_grad_norm,
+                               share_type=args.share_type,
+                               nonlin=nonlin,
+                               optimizer=optimizer,
+                               initializer=tf.random_normal_initializer(stddev=args.init_stddev),
+                               encoding=encodings[args.encoding_type],
+                               temporal_encoding=args.temporal_encoding,
+                               session=sess,
+                              )
+            
+                train_loop(model, 
+                           train_data, val_data,
+                           args.batch_size, 
+                           args.num_epochs, 
+                           args.val_freq
+                          )
+
+                d = {'vocab_dict': word_idx}
+
+                for f in test_data:
+                    test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
+
+                    d.update({
+                        '%s_test_preds' % f: test_preds, 
+                        '%s_test_probs' % f: test_probs, 
+                        '%s_test_acc' % f: test_acc, 
+                        '%s_test_attendance_accs' % f: test_attendance_acc,
+                    })
+
+                d.update(**vars(args))
+
+                np.save(output_path, d)
 
 
 if __name__ == "__main__":
