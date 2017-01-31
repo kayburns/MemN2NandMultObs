@@ -147,7 +147,7 @@ class MemN2N(object):
         self.predict_log_proba_op = predict_log_proba_op = tf.log(predict_proba_op, name="predict_log_proba_op")
 
         # Initialize the graph
-        init_op = tf.global_variables_initializer()
+        init_op = tf.initialize_all_variables()
         self._sess = session
         self._sess.run(init_op)
 
@@ -264,6 +264,7 @@ class MemN2N(object):
 
                 # Sum over memory caches
                 u_k += tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1, 2])  # ... + \sum_j o_jk, shape (None, embedding_size)
+                #u_k += tf.einsum(tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1, 2])  # ... + \sum_j o_jk, shape (None, embedding_size)
 
                 # Nonlinearity
                 if self._nonlin:

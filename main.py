@@ -289,7 +289,7 @@ def main(args=sys.argv[1:]):
     output_path = os.path.join(
             args.output_dir_path,
             #'%s_%s' % (get_git_revision_short_hash(), datetime.datetime.now().time().isoformat())
-            datetime.datetime.now().time().isoformat(),
+            datetime.datetime.now().date().isoformat() + '_' + datetime.datetime.now().time().isoformat(),
     )
 
     optimizer = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
@@ -350,16 +350,18 @@ def main(args=sys.argv[1:]):
                     for f in test_data:
                         test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
 
+                        test_task_name = os.path.basename(os.path.splitext(f)[0])
+
                         d.update({
-                            '%s_test_preds' % os.path.basename(f): test_preds, 
-                            '%s_test_probs' % os.path.basename(f): test_probs, 
-                            '%s_test_acc' % os.path.basename(f): test_acc, 
-                            '%s_test_attendance_accs' % os.path.basename(f): test_attendance_acc,
+                            '%s_test_preds' % test_task_name: test_preds, 
+                            '%s_test_probs' % test_task_name: test_probs, 
+                            '%s_test_acc' % test_task_name: test_acc, 
+                            '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                         })
 
                     vars_args = vars(args)
                     del vars_args['task_ids']
-                    vars_args['task_ids'] = task_id
+                    vars_args['task_ids'] = [task_id]
                     d.update(**vars_args)
 
                     np.save(output_path + '_%d' % task_id, d)
@@ -403,11 +405,13 @@ def main(args=sys.argv[1:]):
                 for f in test_data:
                     test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
 
+                    test_task_name = os.path.basename(os.path.splitext(f)[0])
+
                     d.update({
-                        '%s_test_preds' % f: test_preds, 
-                        '%s_test_probs' % f: test_probs, 
-                        '%s_test_acc' % f: test_acc, 
-                        '%s_test_attendance_accs' % f: test_attendance_acc,
+                        '%s_test_preds' % test_task_name: test_preds, 
+                        '%s_test_probs' % test_task_name: test_probs, 
+                        '%s_test_acc' % test_task_name: test_acc, 
+                        '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                     })
 
                 d.update(**vars(args))
