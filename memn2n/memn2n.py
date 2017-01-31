@@ -245,6 +245,7 @@ class MemN2N(object):
 
             u = [u_0]
             self.probs = []
+            self.r = []
 
             observer_stories = tf.einsum('ijk,ijl->ijkl', stories, observers)  # observer-masked stories, shape (None, embedding_size, sentence_size, num_caches)
 
@@ -262,8 +263,19 @@ class MemN2N(object):
 
                 u_k = tf.matmul(u[-1], self.H)  # u_{k+1} = (u_k)^T H + ...
 
-                # Sum over memory caches
-                u_k += tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1, 2])  # ... + \sum_j o_jk, shape (None, embedding_size)
+                # Sum over memory size
+                o_k = tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1])  
+
+                # Attend over memory caches
+                dotted = tf.reduce_sum(tf.einsum('ik,ijk->ijk', u[-1], o_k), 2)
+                r =  tf.nn.softmax(dotted)
+                self.r.append(r)
+
+                o_k = tf.reduce_sum(tf.einsum('ij,ijk->ijk', r, o_k), 1)
+
+                u_k = u_k + o_k
+                
+                # ... + \sum_j o_jk, shape (None, embedding_size)
                 #u_k += tf.einsum(tf.reduce_sum(tf.einsum('ijk,ijkl->ijkl', probs, c), [1, 2])  # ... + \sum_j o_jk, shape (None, embedding_size)
 
                 # Nonlinearity
@@ -314,13 +326,14 @@ class MemN2N(object):
         fetches = [
             self.predict_op,
             self.probs,
+            self.r,
             self._stories,
             self._queries,
         ]
 
-        predictions, probs, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
+        predictions, probs, r, stories, queries = self._sess.run(fetches, feed_dict=feed_dict)
 
-        return predictions, probs
+        return predictions, (probs, r)
 
     def predict_proba(self, stories, queries):
         """Predicts probabilities of answers.
