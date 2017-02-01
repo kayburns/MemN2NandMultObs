@@ -162,6 +162,7 @@ def evaluate(model, test_data, out_path):
     logging.info("Testing Size: %d" % n_test)
 
     test_preds, test_probs = model.predict(testS, testO, testQ, test_labels)
+    test_probs, test_r = test_probs
 
     test_acc = metrics.accuracy_score(test_preds, test_labels)
     logging.info("Testing Accuracy: %.2f" % test_acc)
@@ -177,7 +178,7 @@ def evaluate(model, test_data, out_path):
         test_attendance_accs += [np.stack(test_attendance_inner_accs)]
     test_attendance_accs = np.stack(test_attendance_accs)
 
-    return test_acc, test_attendance_accs, test_preds, test_probs
+    return test_acc, test_attendance_accs, test_preds, (test_probs, test_r)
 
 
 def parse_args(args):
@@ -354,7 +355,8 @@ def main(args=sys.argv[1:]):
 
                         d.update({
                             '%s_test_preds' % test_task_name: test_preds, 
-                            '%s_test_probs' % test_task_name: test_probs, 
+                            '%s_test_probs' % test_task_name: test_probs[0], 
+                            '%s_test_r' % test_task_name: test_probs[1], 
                             '%s_test_acc' % test_task_name: test_acc, 
                             '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                         })
