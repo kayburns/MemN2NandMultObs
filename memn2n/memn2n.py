@@ -212,8 +212,8 @@ class MemN2N(object):
                 self.A = [A * self._hops]
                 self.C = [C * self._hops]
 
-                TA = tf.Variable(self._init([self._memory_size, self._embedding_size], name='TA'))
-                TC = tf.Variable(self._init([self._memory_size, self._embedding_size], name='TC'))
+                TA = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TA')
+                TC = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TC')
 
                 self.TA = [TA * self._hops]
                 self.TC = [TC * self._hops]
