@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GPU_IDS=( 0 1 )
+GPU_IDS=( 0 1 2 3 )
 NUM_SIMS=10
 
 ENCODING_TYPE_OPTS="position_encoding"
@@ -27,20 +27,22 @@ DATE=`date +%Y-%m-%d`
 parallel --joblog $DATE_$SHA -j ${#GPU_IDS[@]} \
 'export CUDA_VISIBLE_DEVICES=$(({%} - 1)) && \
 python main.py -te -ne 100 \
--t 21 -t 22 -t 23 -t 24 -t 25 \
+-t 1 -t 2 -t 3 -t 4 -t 5 -t 6 -t 7 -t 8 -t 9 -t 10 -t 11 -t 12 -t 13 -t 14 -t 15 -t 16 -t 17 -t 18 -t 19 -t 20 \
 -nl {1} \
 -et {2} \
 -st {3} \
 -de {4} \
 -dm {5} \
 -nc {6} \
--is {8} \
+-is {7} \
 -lr {8} \
 -gn {9} \
 -nh {10} \
 -d data/sally_anne/world_{11}_nex_1000_exitp_{13}_searchp_{12} \
--o results/{14}' \
-::: $NONLIN_OPTS   `# 1` \
+-o results/{14} \
+--joint \
+-t {15}' \
+::: $NONLIN_OPTS \
 ::: $ENCODING_TYPE_OPTS  `# 2` \
 ::: $SHARE_TYPE_OPTS  `# 3` \
 ::: $DIM_EMB_OPTS  `# 4` \
@@ -54,4 +56,5 @@ python main.py -te -ne 100 \
 ::: $SEARCH_PROB_OPTS  `# 12` \
 ::: $EXIT_PROB_OPTS  `# 13` \
 ::: ${SHA}  `# 14` \
-::: {1..$NUM_SIMS}  `# 15`
+::: ${TASK_ID_OPTS}  `# 15` \
+::: {1..$NUM_SIMS}  `# 16`

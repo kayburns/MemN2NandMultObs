@@ -5,8 +5,7 @@
 
 from collections import defaultdict
 import glob
-from IPython.display import Markdown
-from nltk.util import flatten
+#from nltk.util import flatten
 import numpy as np
 import os
 import pandas as pd
@@ -16,7 +15,7 @@ import re
 
 results_path = [
     'results/25aa004/', 
-    'results/87618f1/'
+    #'results/87618f1/'
 ]
 babi_data_path = 'data/tasks_1-20_v1-2/'
 aug_data_path = 'data/sally_anne/'
