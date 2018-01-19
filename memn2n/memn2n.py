@@ -39,8 +39,8 @@ def zero_nil_slot(t, name=None):
     with tf.name_scope(name, "zero_nil_slot", [t]) as name:
         t = tf.convert_to_tensor(t, name="t")
         s = tf.shape(t)[1]
-        z = tf.zeros(tf.pack([1, s]))
-        return tf.concat(0, [z, tf.slice(t, [1, 0], [-1, -1])], name=name)
+        z = tf.zeros(tf.stack([1, s]))
+        return tf.concat([z, tf.slice(t, [1, 0], [-1, -1])], 0, name=name)
 
 
 class MemN2N(object):
@@ -123,7 +123,7 @@ class MemN2N(object):
 
         # cross entropy
         logits = self._inference(self._stories, self._observers, self._queries, share_type) # (batch_size, vocab_size)
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, tf.cast(self._answers, tf.float32), name="cross_entropy")
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=tf.cast(self._answers, tf.float32), name="cross_entropy")
         cross_entropy_sum = tf.reduce_sum(cross_entropy, name="cross_entropy_sum")
 
         # loss op
@@ -171,7 +171,7 @@ class MemN2N(object):
             self.TA = []
             self.TC = []
 
-            B = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+            B = tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0)
             self.B = tf.Variable(B, name="B")
 
             if share_type == 'adjacent':
@@ -179,7 +179,7 @@ class MemN2N(object):
                 self.A += [self.B]
                 self.TA += [tf.zeros([self._memory_size, self._embedding_size])]  # unclear in the paper to what this matrix is tied
 
-                C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+                C = tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0)
                 self.C += [tf.Variable(C, name="C_0")]
 
                 TC = self._init([self._memory_size, self._embedding_size])
@@ -190,7 +190,7 @@ class MemN2N(object):
                     self.A += [self.C[-1]]
                     self.TA += [self.TC[-1]]
 
-                    C = tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ])
+                    C = tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0)
                     self.C += [tf.Variable(C, name="C_%d" % i)]
 
                     TC = self._init([self._memory_size, self._embedding_size])
@@ -206,17 +206,17 @@ class MemN2N(object):
 
             elif share_type == 'layerwise':
 
-                A = tf.Variable(tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ]))
-                C = tf.Variable(tf.concat(0, [ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ]))
+                A = tf.Variable(tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0))
+                C = tf.Variable(tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0))
 
-                self.A = [A * self._hops]
-                self.C = [C * self._hops]
+                self.A = [A] * self._hops
+                self.C = [C] * self._hops
 
                 TA = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TA')
                 TC = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TC')
 
-                self.TA = [TA * self._hops]
-                self.TC = [TC * self._hops]
+                self.TA = [TA] * self._hops
+                self.TC = [TC] * self._hops
 
             else:
                 raise NotImplementedError
@@ -284,7 +284,7 @@ class MemN2N(object):
 
                 u.append(u_k)
 
-            self.probs = tf.pack(self.probs, 3)
+            self.probs = tf.stack(self.probs, 3)
 
             return tf.matmul(u_k, self.W)
 
@@ -432,7 +432,6 @@ class MemN2N(object):
                     reverse = self.reverse_mapping([stories[i, j, k] for k in range(stories.shape[2])])
                     sent = ' '.join([x for x in reverse if x != 'NIL'])
 
-                    #import pdb; pdb.set_trace()
                     #if i*stories.shape[1] + j == np.argmax(attendance, axis=1):
                         #sent += '**'
 

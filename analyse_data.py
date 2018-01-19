@@ -1,11 +1,5 @@
-
-# coding: utf-8
-
-# In[1]:
-
 from collections import defaultdict
 import glob
-from IPython.display import Markdown
 from nltk.util import flatten
 import numpy as np
 import os
@@ -15,10 +9,9 @@ import re
 
 
 results_path = [
-    'results/25aa004/', 
-    'results/87618f1/'
+    'results/7caccbe/'
 ]
-babi_data_path = 'data/tasks_1-20_v1-2/'
+#babi_data_path = 'data/tasks_1-20_v1-2/'
 aug_data_path = 'data/sally_anne/'
 
 
@@ -185,6 +178,9 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     results = np.load(file).item()
     world_size = results['data_path'].split('/')[-1].split('_')[1]
 
+    if results['num_caches'] == 1:
+        continue
+
     # Baselines:
     if world_size == 'large':
         random_acc = 1. / 150
@@ -199,23 +195,79 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
         raise NotImplementedError
         
     # TODO: hack
-    true_belief_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k]
-    false_belief_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k]
-    assert len(true_belief_acc_label) == 1
-    assert len(false_belief_acc_label) == 1
-    true_belief_acc_label = true_belief_acc_label[0]
-    false_belief_acc_label = false_belief_acc_label[0]
+    true_belief_first_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'first' in k]
+    false_belief_first_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'first' in k]
+    false_false_belief_first_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'first' in k]
+    assert len(true_belief_first_acc_label) == 1
+    assert len(false_belief_first_acc_label) == 1
+    assert len(false_false_belief_first_acc_label) == 1
+    true_belief_first_acc_label = true_belief_first_acc_label[0]
+    false_belief_first_acc_label = false_belief_first_acc_label[0]
+    false_false_belief_first_acc_label = false_false_belief_first_acc_label[0]
+
+    true_belief_second_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'second' in k]
+    false_belief_second_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'second' in k]
+    false_false_belief_second_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'second' in k]
+    assert len(true_belief_second_acc_label) == 1
+    assert len(false_belief_second_acc_label) == 1
+    assert len(false_false_belief_second_acc_label) == 1
+    true_belief_second_acc_label = true_belief_second_acc_label[0]
+    false_belief_second_acc_label = false_belief_second_acc_label[0]
+    false_false_belief_second_acc_label = false_false_belief_second_acc_label[0]
+    
+    true_belief_reality_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'reality' in k]
+    false_belief_reality_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'reality' in k]
+    false_false_belief_reality_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'reality' in k]
+    assert len(true_belief_reality_acc_label) == 1
+    assert len(false_belief_reality_acc_label) == 1
+    assert len(false_false_belief_reality_acc_label) == 1
+    true_belief_reality_acc_label = true_belief_reality_acc_label[0]
+    false_belief_reality_acc_label = false_belief_reality_acc_label[0]
+    false_false_belief_reality_acc_label = false_false_belief_reality_acc_label[0]
+    
+    true_belief_memory_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'memory' in k]
+    false_belief_memory_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'memory' in k]
+    false_false_belief_memory_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'memory' in k]
+    assert len(true_belief_memory_acc_label) == 1
+    assert len(false_belief_memory_acc_label) == 1
+    assert len(false_false_belief_memory_acc_label) == 1
+    true_belief_memory_acc_label = true_belief_memory_acc_label[0]
+    false_belief_memory_acc_label = false_belief_memory_acc_label[0]
+    false_false_belief_memory_acc_label = false_false_belief_memory_acc_label[0]
     
     task_id = max(results['task_ids'])
     assert task_id in [21, 22, 23, 24, 25]
 
+    """
+    if results['num_caches'] > 1:
+
+        # Memory cache attendance
+        tb_cache_0, tb_cache_1, tb_cache_2 = list(results['true_belief_task_test_test_r'][0].mean(axis=0))
+        fb_cache_0, fb_cache_1, fb_cache_2 = list(results['false_belief_task_test_test_r'][0].mean(axis=0))
+        ffb_cache_0, ffb_cache_1, ffb_cache_2 = list(results['false_false_belief_task_test_test_r'][0].mean(axis=0))
+        tbtom_cache_0, tbtom_cache_1, tbtom_cache_2 = list(results['true_belief_task_tom_test_test_r'][0].mean(axis=0))
+        fbtom_cache_0, fbtom_cache_1, fbtom_cache_2 = list(results['false_belief_task_tom_test_test_r'][0].mean(axis=0))
+        ffbtom_cache_0, ffbtom_cache_1, ffbtom_cache_2 = list(results['false_false_belief_task_tom_test_test_r'][0].mean(axis=0))
+    """
+
     num_ex = results['data_path'].split('/')[-1].split('_')[3]
     exit_p = results['data_path'].split('/')[-1].split('_')[5]
     search_p = results['data_path'].split('/')[-1].split('_')[7]
+    inform_p = results['data_path'].split('/')[-1].split('_')[9]
     all_results.append([
         task_id,
-        results[true_belief_acc_label],
-        results[false_belief_acc_label],
+        results[true_belief_first_acc_label],
+        results[false_belief_first_acc_label],
+        results[false_false_belief_first_acc_label],
+        results[true_belief_second_acc_label],
+        results[false_belief_second_acc_label],
+        results[false_false_belief_second_acc_label],
+        results[true_belief_reality_acc_label],
+        results[false_belief_reality_acc_label],
+        results[false_false_belief_reality_acc_label],
+        results[true_belief_memory_acc_label],
+        results[false_belief_memory_acc_label],
+        results[false_false_belief_memory_acc_label],
         results['dim_memory'],
         results['dim_emb'],
         results['learning_rate'],
@@ -223,16 +275,51 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
         world_size,
         exit_p,
         search_p,
+        inform_p,
         num_ex,
-        #random_acc,    
-    ])        
+    ])
+
+    """
+    if results['num_caches'] > 1:
+        all_results.append([
+            tb_cache_0,
+            tb_cache_1,
+            tb_cache_2,
+            fb_cache_0,
+            fb_cache_1,
+            fb_cache_2,
+            ffb_cache_0,
+            ffb_cache_1,
+            ffb_cache_2,
+            tbtom_cache_0,
+            tbtom_cache_1,
+            tbtom_cache_2,
+            fbtom_cache_0,
+            fbtom_cache_1,
+            fbtom_cache_2,
+            ffbtom_cache_0,
+            ffbtom_cache_1,
+            ffbtom_cache_2,
+            #random_acc,    
+        ])        
+    """
 
 all_results = np.stack(all_results)
 
 all_columns = [
     'task ID',
-    'true belief test accuracy',
-    'false belief test accuracy',
+    'true belief first test accuracy',
+    'false belief first test accuracy',
+    'false false belief first test accuracy',
+    'true belief second test accuracy',
+    'false belief second test accuracy',
+    'false false belief second test accuracy',
+    'true belief reality test accuracy',
+    'false belief reality test accuracy',
+    'false false belief reality test accuracy',
+    'true belief memory test accuracy',
+    'false belief memory test accuracy',
+    'false false belief memory test accuracy',
     'memory size',
     'embedding size',
     'learning_rate',
@@ -240,16 +327,42 @@ all_columns = [
     'world size',
     'exit probability',
     'search probability',
+    'inform probability',
     'number of examples',
-    #'random baseline accuracy',
 ]
+
+if False:
+    all_columns += [
+        'true belief test memory cache att cache 0',
+        'true belief test memory cache att cache 1',
+        'true belief test memory cache att cache 2',
+        'false belief test memory cache att cache 0',
+        'false belief test memory cache att cache 1',
+        'false belief test memory cache att cache 2',
+        'false false belief test memory cache att cache 0',
+        'false false belief test memory cache att cache 1',
+        'false false belief test memory cache att cache 2',
+        'true belief theory of mind test memory cache att cache 0',
+        'true belief theory of mind test memory cache att cache 1',
+        'true belief theory of mind test memory cache att cache 2',
+        'false belief theory of mind test memory cache att cache 0',
+        'false belief theory of mind test memory cache att cache 1',
+        'false belief theory of mind test memory cache att cache 2',
+        'false false belief theory of mind test memory cache att cache 0',
+        'false false belief theory of mind test memory cache att cache 1',
+        'false false belief theory of mind test memory cache att cache 2',
+        #'random baseline accuracy',
+    ]
 
 df = pd.DataFrame(all_results, columns=all_columns, dtype=float)
 
 world_sizes = [1, 2, 3]
-search_probs = [0.0, 0.5, 1.0]
-exit_probs = [0.0, 0.5, 1.0]
-num_examples = [1000, 10000]
+search_probs = [1.0]
+#exit_probs = [0.0, 0.5, 1.0]
+exit_probs = [0.5]
+inform_probs = [0.0]
+#tom_probs = [0.5]  # TODO: incorporate testing condition
+num_examples = [1000]#, 10000]
 
 task_ids = [21, 22, 23, 24, 25]
 dim_memory= [5, 10, 20, 50]
@@ -257,9 +370,20 @@ dim_embedding = [5, 10, 20, 50, 100]
 num_hops = [1, 2, 3, 4, 5]
 
 tasks_labels = [
-    ('true belief test accuracy', 'true_belief'),
-    ('false belief test accuracy', 'false_belief'),
+    ('true belief first test', 'true_belief_first'),
+    ('false belief first test', 'false_belief_first'),
+    ('false false belief first test', 'false_false_belief_first'),
+    ('true belief second test', 'true_belief_second'),
+    ('false belief second test', 'false_belief_second'),
+    ('false false belief second test', 'false_false_belief_second'),
+    ('true belief reality test', 'true_belief_reality'),
+    ('false belief reality test', 'false_belief_reality'),
+    ('false false belief reality test', 'false_false_belief_reality'),
+    ('true belief memory test', 'true_belief_memory'),
+    ('false belief memory test', 'false_belief_memory'),
+    ('false false belief memory test', 'false_false_belief_memory'),
 ]
+
 task_id_labels = {
     21: 'ab',
     22: 'ba',
@@ -287,33 +411,58 @@ mkdir_p(os.path.join('analysis', 'pooled'))
 mkdir_p(os.path.join('analysis', 'by_embsize'))
 mkdir_p(os.path.join('analysis', 'by_memsize'))
 mkdir_p(os.path.join('analysis', 'by_hop'))
+mkdir_p(os.path.join('analysis', 'att_over_mem'))
 
 for exit_prob in exit_probs:
 
-    inner_df = df[(df['exit probability'] == exit_prob)]
+    for inform_prob in inform_probs:
 
-    for test_task, test_label in tasks_labels:
+        #for tom_prob in tom_probs:
+        if True:
 
-        for task_id in task_ids:
-            filename = 'train_%s_exit_%.2f_test_%s.csv' % (task_id_labels[task_id], exit_prob, test_label)
-            inner_inner_df = inner_df[(inner_df['task ID'] == task_id)]
-            values = inner_inner_df[test_task]
-            np.savetxt(os.path.join('analysis', 'pooled', filename), values)
+            inner_df = df[(df['exit probability'] == exit_prob)]
+            inner_df = inner_df[(inner_df['inform probability'] == inform_prob)]
 
-        for n in num_hops:
-            filename = 'train_aba_exit_%.2f_test_%s_nhops_%d.csv' % (exit_prob, test_label, n)
-            inner_inner_df = inner_df[(inner_df['number of hops'] == n)]
-            values = inner_inner_df[test_task]
-            np.savetxt(os.path.join('analysis', 'by_hop', filename), values)
+            for test_task, test_label in tasks_labels:
 
-        for n in dim_memory:
-            filename = 'train_aba_exit_%.2f_test_%s_memsize_%d.csv' % (exit_prob, test_label, n)
-            inner_inner_df = inner_df[(inner_df['memory size'] == n)]
-            values = inner_inner_df[test_task]
-            np.savetxt(os.path.join('analysis', 'by_memsize', filename), values)
+                for task_id in task_ids:
+                    filename = 'train_%s_exit_%.2f_inform_%.2f_test_%s.csv' % (task_id_labels[task_id], exit_prob, inform_prob, test_label)
+                    inner_inner_df = inner_df[(inner_df['task ID'] == task_id)]
 
-        for n in dim_embedding:
-            filename = 'train_aba_exit_%.2f_test_%s_embsize_%d.csv' % (exit_prob, test_label, n)
-            inner_inner_df = inner_df[(inner_df['embedding size'] == n)]
-            values = inner_inner_df[test_task]
-            np.savetxt(os.path.join('analysis', 'by_embsize', filename), values)
+                    values = inner_inner_df[test_task + ' accuracy']
+                    np.savetxt(os.path.join('analysis', 'pooled', filename), values)
+
+                    """
+
+                    values_0 = inner_inner_df['%s memory cache att cache 0' % test_task]
+                    values_1 = inner_inner_df['%s memory cache att cache 1' % test_task]
+                    values_2 = inner_inner_df['%s memory cache att cache 2' % test_task]
+
+                    filename = 'train_%s_exit_%.2f_inform_%.2f_tom_%.2f_test_%s_cache_0.csv' % (task_id_labels[task_id], exit_prob, inform_prob, tom_prob, test_label)
+                    np.savetxt(os.path.join('analysis', 'att_over_mem', filename), values_0)
+                    filename = 'train_%s_exit_%.2f_inform_%.2f_tom_%.2f_test_%s_cache_1.csv' % (task_id_labels[task_id], exit_prob, inform_prob, tom_prob, test_label)
+                    np.savetxt(os.path.join('analysis', 'att_over_mem', filename), values_1)
+                    filename = 'train_%s_exit_%.2f_inform_%.2f_tom_%.2f_test_%s_cache_2.csv' % (task_id_labels[task_id], exit_prob, inform_prob, tom_prob, test_label)
+                    np.savetxt(os.path.join('analysis', 'att_over_mem', filename), values_2)
+                    """
+
+                """
+                for n in num_hops:
+                    filename = 'train_aba_exit_%.2f_test_%s_nhops_%d.csv' % (exit_prob, test_label, n)
+                    inner_inner_df = inner_df[(inner_df['number of hops'] == n)]
+                    values = inner_inner_df[test_task + ' accuracy']
+                    np.savetxt(os.path.join('analysis', 'by_hop', filename), values)
+
+                for n in dim_memory:
+                    filename = 'train_aba_exit_%.2f_test_%s_memsize_%d.csv' % (exit_prob, test_label, n)
+                    inner_inner_df = inner_df[(inner_df['memory size'] == n)]
+                    values = inner_inner_df[test_task + ' accuracy']
+                    np.savetxt(os.path.join('analysis', 'by_memsize', filename), values)
+
+                for n in dim_embedding:
+                    filename = 'train_aba_exit_%.2f_test_%s_embsize_%d.csv' % (exit_prob, test_label, n)
+                    inner_inner_df = inner_df[(inner_df['embedding size'] == n)]
+                    values = inner_inner_df[test_task + ' accuracy']
+                    np.savetxt(os.path.join('analysis', 'by_embsize', filename), values)
+                    """
+                   
