@@ -1,10 +1,6 @@
 #!/bin/bash
 
-<<<<<<< HEAD
 GPU_IDS=( 0 1 2 )
-=======
-GPU_IDS=( 0 1 2 3 )
->>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
 NUM_SIMS=10
 
 ENCODING_TYPE_OPTS="position_encoding"
