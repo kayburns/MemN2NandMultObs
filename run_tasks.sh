@@ -1,6 +1,10 @@
 #!/bin/bash
 
+<<<<<<< HEAD
 GPU_IDS=( 0 1 2 )
+=======
+GPU_IDS=( 0 1 2 3 )
+>>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
 NUM_SIMS=10
 
 ENCODING_TYPE_OPTS="position_encoding"
@@ -27,7 +31,7 @@ DATE=`date +%Y-%m-%d`
 parallel -j ${#GPU_IDS[@]} \
 'export CUDA_VISIBLE_DEVICES=$(({%} - 1)) && \
 python main.py -te -ne 100 \
--t 21 -t 22 -t 23 -t 24 -t 25 \
+-t 1 -t 2 -t 3 -t 4 -t 5 -t 6 -t 7 -t 8 -t 9 -t 10 -t 11 -t 12 -t 13 -t 14 -t 15 -t 16 -t 17 -t 18 -t 19 -t 20 \
 -nl {1} \
 -et {2} \
 -st {3} \
@@ -38,9 +42,17 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
+<<<<<<< HEAD
 -d data/sally_anne/world_{11}_nex_1000_exitp_{12}_searchp_{13}_informp_{14} \
 -o results/{15}' \
 ::: $NONLIN_OPTS   `# 1` \
+=======
+-d data/sally_anne/world_{11}_nex_1000_exitp_{13}_searchp_{12} \
+-o results/{14} \
+--joint \
+-t {15}' \
+::: $NONLIN_OPTS \
+>>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
 ::: $ENCODING_TYPE_OPTS  `# 2` \
 ::: $SHARE_TYPE_OPTS  `# 3` \
 ::: $DIM_EMB_OPTS  `# 4` \
@@ -51,8 +63,15 @@ python main.py -te -ne 100 \
 ::: $MAX_GRAD_NORM_OPTS  `# 9` \
 ::: $NUM_HOPS_OPTS  `# 10` \
 ::: $WORLD_SIZE_OPTS  `# 11` \
+<<<<<<< HEAD
 ::: $EXIT_PROB_OPTS  `# 12` \
 ::: $SEARCH_PROB_OPTS  `# 13` \
 ::: $INFORM_PROB_OPTS  `# 14` \
 ::: ${SHA}  `# 15` \
+=======
+::: $SEARCH_PROB_OPTS  `# 12` \
+::: $EXIT_PROB_OPTS  `# 13` \
+::: ${SHA}  `# 14` \
+::: ${TASK_ID_OPTS}  `# 15` \
+>>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
 ::: {1..$NUM_SIMS}  `# 16`

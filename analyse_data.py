@@ -1,6 +1,6 @@
 from collections import defaultdict
 import glob
-from nltk.util import flatten
+#from nltk.util import flatten
 import numpy as np
 import os
 import pandas as pd
