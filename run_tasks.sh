@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# To install the latest version of parallel, run
+# (wget -O - pi.dk/3 || curl pi.dk/3/ || fetch -o - http://pi.dk/3) | bash
 
 GPU_IDS=( 0 1 2 )
 NUM_SIMS=10
@@ -14,20 +17,17 @@ LEARNING_RATE_OPTS="0.01"
 MAX_GRAD_NORM_OPTS=40
 NUM_HOPS_OPTS="1 2 3"
 WORLD_SIZE_OPTS="large small"
-#SEARCH_PROB_OPTS="0.00 0.50 1.00"
 SEARCH_PROB_OPTS="1.00"
-EXIT_PROB_OPTS="0.00 0.50 1.00"
-INFORM_PROB_OPTS="0.00"
+EXIT_PROB_OPTS="0.67"
+INFORM_PROB_OPTS="0.50"
+TASK_ID_OPTS="21 22 23 24 25"
 
 SHA=$(git log --pretty=format:'%h' -n 1)
 DATE=`date +%Y-%m-%d`
 
-#'export CUDA_VISIBLE_DEVICES=$(({%} - 1)) &&
-
 parallel -j ${#GPU_IDS[@]} \
 'export CUDA_VISIBLE_DEVICES=$(({%} - 1)) && \
 python main.py -te -ne 100 \
--t 1 -t 2 -t 3 -t 4 -t 5 -t 6 -t 7 -t 8 -t 9 -t 10 -t 11 -t 12 -t 13 -t 14 -t 15 -t 16 -t 17 -t 18 -t 19 -t 20 \
 -nl {1} \
 -et {2} \
 -st {3} \
@@ -38,17 +38,10 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
-<<<<<<< HEAD
 -d data/sally_anne/world_{11}_nex_1000_exitp_{12}_searchp_{13}_informp_{14} \
--o results/{15}' \
+-o results/{15} \
+-t {16}' \
 ::: $NONLIN_OPTS   `# 1` \
-=======
--d data/sally_anne/world_{11}_nex_1000_exitp_{13}_searchp_{12} \
--o results/{14} \
---joint \
--t {15}' \
-::: $NONLIN_OPTS \
->>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
 ::: $ENCODING_TYPE_OPTS  `# 2` \
 ::: $SHARE_TYPE_OPTS  `# 3` \
 ::: $DIM_EMB_OPTS  `# 4` \
@@ -59,15 +52,9 @@ python main.py -te -ne 100 \
 ::: $MAX_GRAD_NORM_OPTS  `# 9` \
 ::: $NUM_HOPS_OPTS  `# 10` \
 ::: $WORLD_SIZE_OPTS  `# 11` \
-<<<<<<< HEAD
 ::: $EXIT_PROB_OPTS  `# 12` \
 ::: $SEARCH_PROB_OPTS  `# 13` \
 ::: $INFORM_PROB_OPTS  `# 14` \
 ::: ${SHA}  `# 15` \
-=======
-::: $SEARCH_PROB_OPTS  `# 12` \
-::: $EXIT_PROB_OPTS  `# 13` \
-::: ${SHA}  `# 14` \
-::: ${TASK_ID_OPTS}  `# 15` \
->>>>>>> 06066df892d5b16e93052e7512be5485a57891f8
-::: {1..$NUM_SIMS}  `# 16`
+::: ${TASK_ID_OPTS}  `# 16` \
+::: {1..$NUM_SIMS}  `# 17`
