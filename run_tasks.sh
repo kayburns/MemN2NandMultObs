@@ -11,7 +11,7 @@ SHARE_TYPE_OPTS="layerwise"
 NONLIN_OPTS="relu"
 DIM_MEMORY_OPTS="10 20 50"
 DIM_EMB_OPTS="10 20 50"
-NUM_CACHES_OPTS="1 3"
+NUM_CACHES_OPTS="1"
 INIT_STDDEV_OPTS=0.1
 LEARNING_RATE_OPTS="0.01"
 MAX_GRAD_NORM_OPTS=40
@@ -20,7 +20,8 @@ WORLD_SIZE_OPTS="large small"
 SEARCH_PROB_OPTS="1.00"
 EXIT_PROB_OPTS="0.67"
 INFORM_PROB_OPTS="0.50"
-TASK_ID_OPTS="21 22 23 24 25"
+# TASK_ID_OPTS="21 22 23 24 25"
+TASK_ID_OPTS="21"
 
 SHA=$(git log --pretty=format:'%h' -n 1)
 DATE=`date +%Y-%m-%d`
@@ -38,9 +39,9 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
--d data/sally_anne/world_{11}_nex_1000_exitp_{12}_searchp_{13}_informp_{14} \
--o results/{15} \
--t {16}' \
+-d data/sally_anne/world_{11}_nex_100_cache_1 \
+-o results/{12} \
+-t {13}' \
 ::: $NONLIN_OPTS   `# 1` \
 ::: $ENCODING_TYPE_OPTS  `# 2` \
 ::: $SHARE_TYPE_OPTS  `# 3` \
@@ -52,9 +53,6 @@ python main.py -te -ne 100 \
 ::: $MAX_GRAD_NORM_OPTS  `# 9` \
 ::: $NUM_HOPS_OPTS  `# 10` \
 ::: $WORLD_SIZE_OPTS  `# 11` \
-::: $EXIT_PROB_OPTS  `# 12` \
-::: $SEARCH_PROB_OPTS  `# 13` \
-::: $INFORM_PROB_OPTS  `# 14` \
-::: ${SHA}  `# 15` \
-::: ${TASK_ID_OPTS}  `# 16` \
-::: {1..$NUM_SIMS}  `# 17`
+::: ${SHA}  `# 12` \
+::: ${TASK_ID_OPTS}  `# 13` \
+::: {1..$NUM_SIMS}  `# 14`

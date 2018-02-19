@@ -7,10 +7,11 @@ import pandas as pd
 from pprint import pprint
 import re
 
-
 results_path = [
-    'results/7caccbe/'
+#     'results/7caccbe/'
+    'results/e67d707/'
 ]
+
 #babi_data_path = 'data/tasks_1-20_v1-2/'
 aug_data_path = 'data/sally_anne/'
 
@@ -55,6 +56,9 @@ aug_data_path = 'data/sally_anne/'
 #        lines = [x.rstrip('\n').replace(".", "") for x in f.readlines()]
 #        lines = [[x.strip() for x in re.split('(\W+)?', sent) if x.strip() and not is_number(x)] for sent in lines]
 #    return lines
+
+# task_ids = [21, 23, 25]
+task_ids = [21]
 
 containers = {}
 
@@ -198,9 +202,9 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     true_belief_first_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'first' in k]
     false_belief_first_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'first' in k]
     false_false_belief_first_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'first' in k]
-    assert len(true_belief_first_acc_label) == 1
-    assert len(false_belief_first_acc_label) == 1
-    assert len(false_false_belief_first_acc_label) == 1
+    # assert len(true_belief_first_acc_label) == 1
+    # assert len(false_belief_first_acc_label) == 1
+    # assert len(false_false_belief_first_acc_label) == 1
     true_belief_first_acc_label = true_belief_first_acc_label[0]
     false_belief_first_acc_label = false_belief_first_acc_label[0]
     false_false_belief_first_acc_label = false_false_belief_first_acc_label[0]
@@ -208,9 +212,9 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     true_belief_second_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'second' in k]
     false_belief_second_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'second' in k]
     false_false_belief_second_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'second' in k]
-    assert len(true_belief_second_acc_label) == 1
-    assert len(false_belief_second_acc_label) == 1
-    assert len(false_false_belief_second_acc_label) == 1
+    # assert len(true_belief_second_acc_label) == 1
+    # assert len(false_belief_second_acc_label) == 1
+    # assert len(false_false_belief_second_acc_label) == 1
     true_belief_second_acc_label = true_belief_second_acc_label[0]
     false_belief_second_acc_label = false_belief_second_acc_label[0]
     false_false_belief_second_acc_label = false_false_belief_second_acc_label[0]
@@ -218,9 +222,9 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     true_belief_reality_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'reality' in k]
     false_belief_reality_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'reality' in k]
     false_false_belief_reality_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'reality' in k]
-    assert len(true_belief_reality_acc_label) == 1
-    assert len(false_belief_reality_acc_label) == 1
-    assert len(false_false_belief_reality_acc_label) == 1
+    # assert len(true_belief_reality_acc_label) == 1
+    # assert len(false_belief_reality_acc_label) == 1
+    # assert len(false_false_belief_reality_acc_label) == 1
     true_belief_reality_acc_label = true_belief_reality_acc_label[0]
     false_belief_reality_acc_label = false_belief_reality_acc_label[0]
     false_false_belief_reality_acc_label = false_false_belief_reality_acc_label[0]
@@ -228,15 +232,15 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     true_belief_memory_acc_label = [k for k in results.keys() if 'true' in k and 'acc' in k and 'attendance' not in k and 'memory' in k]
     false_belief_memory_acc_label = [k for k in results.keys() if 'false' in k and 'acc' in k and 'attendance' not in k and 'false_false' not in k and 'memory' in k]
     false_false_belief_memory_acc_label = [k for k in results.keys() if 'false_false' in k and 'acc' in k and 'attendance' not in k and 'memory' in k]
-    assert len(true_belief_memory_acc_label) == 1
-    assert len(false_belief_memory_acc_label) == 1
-    assert len(false_false_belief_memory_acc_label) == 1
+    # assert len(true_belief_memory_acc_label) == 1
+    # assert len(false_belief_memory_acc_label) == 1
+    # assert len(false_false_belief_memory_acc_label) == 1
     true_belief_memory_acc_label = true_belief_memory_acc_label[0]
     false_belief_memory_acc_label = false_belief_memory_acc_label[0]
     false_false_belief_memory_acc_label = false_false_belief_memory_acc_label[0]
     
     task_id = max(results['task_ids'])
-    assert task_id in [21, 22, 23, 24, 25]
+    # assert task_id in task_ids
 
     """
     if results['num_caches'] > 1:
@@ -254,7 +258,7 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     exit_p = results['data_path'].split('/')[-1].split('_')[5]
     search_p = results['data_path'].split('/')[-1].split('_')[7]
     inform_p = results['data_path'].split('/')[-1].split('_')[9]
-    all_results.append([
+    all_results.extend([
         task_id,
         results[true_belief_first_acc_label],
         results[false_belief_first_acc_label],
@@ -304,7 +308,9 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
         ])        
     """
 
-all_results = np.stack(all_results)
+# all_results = np.stack(all_results)
+all_results = np.reshape(np.array(all_results), (162,22))
+
 
 all_columns = [
     'task ID',
@@ -355,6 +361,7 @@ if False:
     ]
 
 df = pd.DataFrame(all_results, columns=all_columns, dtype=float)
+df.to_csv('res_csv')
 
 world_sizes = [1, 2, 3]
 search_probs = [1.0]
@@ -364,7 +371,7 @@ inform_probs = [0.0]
 #tom_probs = [0.5]  # TODO: incorporate testing condition
 num_examples = [1000]#, 10000]
 
-task_ids = [21, 22, 23, 24, 25]
+# task_ids = [21, 22, 23, 24, 25]
 dim_memory= [5, 10, 20, 50]
 dim_embedding = [5, 10, 20, 50, 100]
 num_hops = [1, 2, 3, 4, 5]

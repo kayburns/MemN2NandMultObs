@@ -185,6 +185,7 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
         # SUPPORTING SENTENCES
         l = np.zeros(memory_size)
         for supp in support:
+            supp = memory_size+1 # TODO: remove hack
             if supp <= memory_size:
                 try:
                     l[supp - 1] = 1

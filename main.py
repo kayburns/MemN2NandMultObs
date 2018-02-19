@@ -38,7 +38,7 @@ def load_data(data_dir, task_ids, memory_size, num_caches, random_seed):
     vocab = sorted(reduce(lambda x, y: x | y, (set(list(chain.from_iterable(s)) + q + a + ['.']) for s, _, q, a, _ in data)))
     word_idx = dict((c, i + 1) for i, c in enumerate(vocab))
     reverse_word_idx = ['NIL'] + sorted(word_idx.keys(), key=lambda x: word_idx[x])
-    
+
     max_story_size = max(map(len, (s for s, _, _, _, _ in data)))
     mean_story_size = int(np.mean([ len(s) for s, _, _, _, _ in data ]))
     sentence_size = max(map(len, chain.from_iterable(s for s, _, _, _, _ in data)))
@@ -151,6 +151,36 @@ def train_loop(model, train_data, val_data, batch_size, num_epochs, val_freq):
             logging.info('Total Cost: %.2f' % total_cost)
             logging.info('Training Accuracy: %.2f' % train_acc)
             logging.info('Validation Accuracy: %.2f' % val_acc)
+
+
+
+def evaluate_per_question(model, test_data, out_path):
+
+    testS, testO, testQ, testA, testL = test_data
+    test_labels = np.argmax(testA, axis=1)
+
+    n_test = testS.shape[0]
+    logging.info("Testing Size: %d" % n_test)
+    test_preds, test_probs = model.predict(testS, testO, testQ, test_labels)
+    test_probs, test_r = test_probs
+    test_accs = []
+    for i in range(4):
+        test_accs.append(metrics.accuracy_score(test_preds[i::4], test_labels[i::4]))
+    logging.info("Testing Accuracy: %.2f" % (sum(test_accs)/4))
+
+    # TODO deal with observer case
+    test_attendance_accs = []
+    for i in range(test_probs.shape[3]):
+        test_attendance_inner_accs = []
+        for j in range(test_probs.shape[2]):
+            test_attendance_acc = metrics.accuracy_score(np.argmax(test_probs[:, :, j, i], axis=1), np.argmax(testL, axis=1))
+            test_attendance_inner_accs.append(test_attendance_acc)
+            print("Testing Accuracy of Attendance at hop %d for observer %d:" % (i, j), test_attendance_acc)
+        test_attendance_accs += [np.stack(test_attendance_inner_accs)]
+    test_attendance_accs = np.stack(test_attendance_accs)
+
+    return test_accs, test_attendance_accs, test_preds, (test_probs, test_r)
+
 
 
 def evaluate(model, test_data, out_path):
@@ -342,14 +372,14 @@ def main(args=sys.argv[1:]):
                     train_loop(model, 
                                train_data, val_data,
                                args.batch_size, 
-                               args.num_epochs, 
+                               args.num_epochs,
                                args.val_freq
                               )
 
                     d = {'vocab_dict': word_idx}
 
                     for f in test_data:
-                        test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
+                        test_accs, test_attendance_acc, test_preds, test_probs = evaluate_per_question(model, test_data[f], output_path)
 
                         test_task_name = os.path.basename(os.path.splitext(f)[0])
 
@@ -357,7 +387,10 @@ def main(args=sys.argv[1:]):
                             '%s_test_preds' % test_task_name: test_preds, 
                             '%s_test_probs' % test_task_name: test_probs[0], 
                             '%s_test_r' % test_task_name: test_probs[1], 
-                            '%s_test_acc' % test_task_name: test_acc, 
+                            '%s_test_acc_0' % test_task_name: test_accs[0], 
+                            '%s_test_acc_1' % test_task_name: test_accs[1], 
+                            '%s_test_acc_2' % test_task_name: test_accs[2], 
+                            '%s_test_acc_3' % test_task_name: test_accs[3], 
                             '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                         })
 
@@ -394,7 +427,7 @@ def main(args=sys.argv[1:]):
                                temporal_encoding=args.temporal_encoding,
                                session=sess,
                               )
-            
+                # TRAINING HAPPENS HERE         
                 train_loop(model, 
                            train_data, val_data,
                            args.batch_size, 
@@ -404,15 +437,19 @@ def main(args=sys.argv[1:]):
 
                 d = {'vocab_dict': word_idx}
 
+                # FIND TEST ACCURACY
                 for f in test_data:
-                    test_acc, test_attendance_acc, test_preds, test_probs = evaluate(model, test_data[f], output_path)
+                    test_accs, test_attendance_acc, test_preds, test_probs = evaluate_per_question(model, test_data[f], output_path)
 
                     test_task_name = os.path.basename(os.path.splitext(f)[0])
 
                     d.update({
                         '%s_test_preds' % test_task_name: test_preds, 
                         '%s_test_probs' % test_task_name: test_probs, 
-                        '%s_test_acc' % test_task_name: test_acc, 
+                        '%s_test_acc_0' % test_task_name: test_accs[0], 
+                        '%s_test_acc_1' % test_task_name: test_accs[1], 
+                        '%s_test_acc_2' % test_task_name: test_accs[2], 
+                        '%s_test_acc_3' % test_task_name: test_accs[3], 
                         '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                     })
 
