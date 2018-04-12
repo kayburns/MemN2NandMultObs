@@ -53,7 +53,6 @@ def parse_stories(lines, only_supporting=False):
             substory_counter = 0
 
         if '?' in line:  # question
-
             if not story:
                 raise Exception
 
@@ -199,3 +198,14 @@ def vectorize_data(data, word_idx, sentence_size, memory_size, num_caches):
         L.append(l)
 
     return np.array(S), np.array(O), np.array(Q), np.array(A), np.array(L)
+
+def list_to_path(lst):
+   """
+   Converts a list into a decent looking
+   string for a filename. Removes pesky /
+   and \ charachters.
+   """
+   lst = [str(x) for x in lst]
+   s = "_".join(lst)
+   s = s.replace("/", "").replace("\\", "").replace("[","").replace("]", "")
+   return s

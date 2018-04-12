@@ -11,12 +11,12 @@ SHARE_TYPE_OPTS="layerwise"
 NONLIN_OPTS="relu"
 DIM_MEMORY_OPTS="10 20 50"
 DIM_EMB_OPTS="10 20 50"
-NUM_CACHES_OPTS="1"
+NUM_CACHES_OPTS="1 3"
 INIT_STDDEV_OPTS=0.1
 LEARNING_RATE_OPTS="0.01"
 MAX_GRAD_NORM_OPTS=40
 NUM_HOPS_OPTS="1 2 3"
-WORLD_SIZE_OPTS="large small"
+WORLD_SIZE_OPTS="0" # temporarily changed to noise
 SEARCH_PROB_OPTS="1.00"
 EXIT_PROB_OPTS="0.67"
 INFORM_PROB_OPTS="0.50"
@@ -39,7 +39,7 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
--d data/sally_anne/world_{11}_nex_100_cache_1 \
+-d data/sally_anne/world_large_nex_100_{11} \
 -o results/{12} \
 -t {13}' \
 ::: $NONLIN_OPTS   `# 1` \

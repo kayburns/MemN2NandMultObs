@@ -255,6 +255,7 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
     """
 
     num_ex = results['data_path'].split('/')[-1].split('_')[3]
+    noise = results['data_path'].split('/')[-1].split('_')[4]
     exit_p = results['data_path'].split('/')[-1].split('_')[5]
     search_p = results['data_path'].split('/')[-1].split('_')[7]
     inform_p = results['data_path'].split('/')[-1].split('_')[9]
@@ -281,6 +282,7 @@ for file in [item for sublist in results_path for item in glob.glob(os.path.join
         search_p,
         inform_p,
         num_ex,
+        noise
     ])
 
     """

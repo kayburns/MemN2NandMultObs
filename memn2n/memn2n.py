@@ -8,10 +8,11 @@ from __future__ import division
 import tensorflow as tf
 import numpy as np
 from six.moves import range
-
+import logging
 
 from utils import position_encoding
 
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 def add_gradient_noise(t, stddev=1e-3, name=None):
     """
@@ -118,6 +119,8 @@ class MemN2N(object):
         self._reverse_vocab_dict = reverse_vocab_dict
 
         self._build_inputs()
+        
+        # computation graph built here
         self._build_vars(share_type)
         self._encoding = tf.constant(encoding(self._sentence_size, self._embedding_size), name="encoding")
 
@@ -153,11 +156,15 @@ class MemN2N(object):
 
     def _build_inputs(self):
         self._stories = tf.placeholder(tf.int32, [None, self._memory_size, self._sentence_size], name="stories")
-        self._observers = tf.placeholder(tf.int32, [None, self._memory_size, self._num_caches], name="stories")
+        self._observers = tf.placeholder(tf.int32, [None, self._memory_size, self._num_caches], name="observers")
         self._queries = tf.placeholder(tf.int32, [None, self._sentence_size], name="queries")
         self._answers = tf.placeholder(tf.int32, [None, self._vocab_size], name="answers")
 
     def _build_vars(self, share_type):
+        """
+        Builds enite computation graph for prediction.
+        Does not build ops for training.
+        """
         with tf.variable_scope(self._name):
 
             nil_word_slot = tf.zeros([1, self._embedding_size])
@@ -165,12 +172,15 @@ class MemN2N(object):
             self.H = tf.Variable(self._init([self._embedding_size, self._embedding_size]), name="H")
             self.W = tf.Variable(self._init([self._embedding_size, self._vocab_size]), name="W")
 
+            # key, value embedding
             self.A = []
             self.C = []
 
+            # temporal encoding
             self.TA = []
             self.TC = []
 
+            # query embedding
             B = tf.concat([ nil_word_slot, self._init([self._vocab_size - 1, self._embedding_size]) ], 0)
             self.B = tf.Variable(B, name="B")
 

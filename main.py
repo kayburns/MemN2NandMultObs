@@ -17,7 +17,7 @@ import numpy as np
 from sklearn import cross_validation, metrics
 import tensorflow as tf
     
-from data_utils import load_task, vectorize_data
+from data_utils import load_task, vectorize_data, list_to_path
 from memn2n import MemN2N
 from utils import mkdir_p, bow_encoding, position_encoding
 
@@ -368,7 +368,11 @@ def main(args=sys.argv[1:]):
                                    temporal_encoding=args.temporal_encoding,
                                    session=sess,
                                   )
-                
+
+                    saver = tf.train.Saver()
+                    params = list_to_path(vars(args).values())
+                    saver.save(sess, '/home/kayleeburns/memory/memn2n/ckpts/consistency/model_%s' % params)
+
                     train_loop(model, 
                                train_data, val_data,
                                args.batch_size, 
@@ -427,7 +431,11 @@ def main(args=sys.argv[1:]):
                                temporal_encoding=args.temporal_encoding,
                                session=sess,
                               )
-                # TRAINING HAPPENS HERE         
+
+                saver = tf.train.Saver()
+                params = list_to_path(vars(args).values())
+                saver.save(sess, '/home/kayleeburns/memory/memn2n/ckpts/consistency/model_%s' % params)
+
                 train_loop(model, 
                            train_data, val_data,
                            args.batch_size, 
