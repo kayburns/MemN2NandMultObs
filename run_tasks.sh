@@ -3,7 +3,7 @@
 # To install the latest version of parallel, run
 # (wget -O - pi.dk/3 || curl pi.dk/3/ || fetch -o - http://pi.dk/3) | bash
 
-GPU_IDS=( 0 1 2 )
+GPU_IDS=( 1 2 )
 NUM_SIMS=10
 
 ENCODING_TYPE_OPTS="position_encoding"
@@ -16,7 +16,7 @@ INIT_STDDEV_OPTS=0.1
 LEARNING_RATE_OPTS="0.01"
 MAX_GRAD_NORM_OPTS=40
 NUM_HOPS_OPTS="1 2 3"
-WORLD_SIZE_OPTS="0" # temporarily changed to noise
+WORLD_SIZE_OPTS="0 10" # temporarily changed to noise
 SEARCH_PROB_OPTS="1.00"
 EXIT_PROB_OPTS="0.67"
 INFORM_PROB_OPTS="0.50"
@@ -39,9 +39,10 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
--d data/sally_anne/world_large_nex_100_{11} \
+-d data/sally_anne/world_large_nex_1000_{11} \
 -o results/{12} \
--t {13}' \
+-t {13} \
+-te' \
 ::: $NONLIN_OPTS   `# 1` \
 ::: $ENCODING_TYPE_OPTS  `# 2` \
 ::: $SHARE_TYPE_OPTS  `# 3` \

@@ -163,10 +163,12 @@ def evaluate_per_question(model, test_data, out_path):
     logging.info("Testing Size: %d" % n_test)
     test_preds, test_probs = model.predict(testS, testO, testQ, test_labels)
     test_probs, test_r = test_probs
-    test_accs = []
-    for i in range(4):
-        test_accs.append(metrics.accuracy_score(test_preds[i::4], test_labels[i::4]))
-    logging.info("Testing Accuracy: %.2f" % (sum(test_accs)/4))
+    # test_accs = []
+    # for i in range(4):
+    #     test_accs.append(metrics.accuracy_score(test_preds[i::4], test_labels[i::4]))
+    test_accs = metrics.accuracy_score(test_preds, test_labels)
+    # ogging.info("Testing Accuracy: %.2f" % (sum(test_accs)/4))
+    logging.info("Testing Accuracy: %.2f" % test_accs)
 
     # TODO deal with observer case
     test_attendance_accs = []
@@ -349,7 +351,7 @@ def main(args=sys.argv[1:]):
                 with tf.Session(graph=tf.get_default_graph()) as sess:
 
                     train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, [task_id], args.dim_memory, args.num_caches, args.random_seed)
-
+                    print(args.temporal_encoding)
                     model = MemN2N(args.batch_size, 
                                    vocab_size,
                                    sentence_size,
@@ -391,10 +393,11 @@ def main(args=sys.argv[1:]):
                             '%s_test_preds' % test_task_name: test_preds, 
                             '%s_test_probs' % test_task_name: test_probs[0], 
                             '%s_test_r' % test_task_name: test_probs[1], 
-                            '%s_test_acc_0' % test_task_name: test_accs[0], 
-                            '%s_test_acc_1' % test_task_name: test_accs[1], 
-                            '%s_test_acc_2' % test_task_name: test_accs[2], 
-                            '%s_test_acc_3' % test_task_name: test_accs[3], 
+                            '%s_test_acc' % test_task_name: test_accs,
+                            #'%s_test_acc_0' % test_task_name: test_accs[0], 
+                            #'%s_test_acc_1' % test_task_name: test_accs[1], 
+                            #'%s_test_acc_2' % test_task_name: test_accs[2], 
+                            #'%s_test_acc_3' % test_task_name: test_accs[3], 
                             '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                         })
 
@@ -412,7 +415,7 @@ def main(args=sys.argv[1:]):
             with tf.Session(graph=tf.get_default_graph()) as sess:
 
                 train_data, val_data, test_data, word_idx, reverse_word_idx, vocab_size, sentence_size, memory_size = load_data(args.data_path, args.task_ids, args.dim_memory, args.num_caches, args.random_seed)
-
+                print(args.temporal_encoding)
                 model = MemN2N(args.batch_size, 
                                vocab_size,
                                sentence_size,
@@ -454,11 +457,12 @@ def main(args=sys.argv[1:]):
                     d.update({
                         '%s_test_preds' % test_task_name: test_preds, 
                         '%s_test_probs' % test_task_name: test_probs, 
-                        '%s_test_acc_0' % test_task_name: test_accs[0], 
-                        '%s_test_acc_1' % test_task_name: test_accs[1], 
-                        '%s_test_acc_2' % test_task_name: test_accs[2], 
-                        '%s_test_acc_3' % test_task_name: test_accs[3], 
-                        '%s_test_attendance_accs' % test_task_name: test_attendance_acc,
+                        '%s_test_acc' % test_task_name: test_accs,
+                        #'%s_test_acc_0' % test_task_name: test_accs[0], 
+                        #'%s_test_acc_1' % test_task_name: test_accs[1], 
+                        #'%s_test_acc_2' % test_task_name: test_accs[2], 
+                        #'%s_test_acc_3' % test_task_name: test_accs[3], 
+                        #'%s_test_attendance_accs' % test_task_name: test_attendance_acc,
                     })
 
                 d.update(**vars(args))
