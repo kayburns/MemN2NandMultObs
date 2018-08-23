@@ -39,7 +39,7 @@ python main.py -te -ne 100 \
 -lr {8} \
 -gn {9} \
 -nh {10} \
--d data/sally_anne/world_large_nex_1000_{11} \
+-d ../../python-bAbi-tasks/data/tom/world_large_nex_1000_{11} \
 -o results/{12} \
 -t {13} \
 -te' \
