@@ -161,7 +161,7 @@ def evaluate_per_question(model, test_data, out_path):
 
     n_test = testS.shape[0]
     logging.info("Testing Size: %d" % n_test)
-    test_preds, test_probs = model.predict(testS, testO, testQ, test_labels)
+    test_preds, test_probs = odel.predict(testS, testO, testQ, test_labels)
     test_probs, test_r = test_probs
     # test_accs = []
     # for i in range(4):
