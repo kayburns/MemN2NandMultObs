@@ -14,8 +14,15 @@ Install all of the requirements.
 - Pandas
 - Matplotlib
 - Numpy
+- Parallel: `(wget -O - pi.dk/3 || curl pi.dk/3/ || fetch -o - http://pi.dk/3) | bash`
 
-## Running experiments
+## Running Experiments
+
+```
+./run_tasks.sh
+```
+
+## Running Analysis
 ```
 ./run_tasks.sh
 ```
