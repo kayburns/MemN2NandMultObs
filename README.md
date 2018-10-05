@@ -17,12 +17,12 @@ Install all of the requirements.
 - Parallel: `(wget -O - pi.dk/3 || curl pi.dk/3/ || fetch -o - http://pi.dk/3) | bash`
 
 ## Running Experiments
-
 ```
 ./run_tasks.sh
 ```
+This will create a folder inside of `results/` with all of the results, which are processed with the step below.
 
 ## Running Analysis
 ```
-./run_tasks.sh
+python tom_experiments.py --result_files results/${RESULT_FNAME}
 ```
