@@ -3,14 +3,16 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 import itertools
+import argparse
+import sys
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description='conduct analysis on memn2n results'
     )
     parser.add_argument(
-        '--result_files',
-        action='append'
+        '--result_files', type=str, default='results/', dest='result_files',
+        help='Path to results.'
     )
     if len(sys.argv) == 1:
         parser.print_help()
@@ -26,6 +28,17 @@ def create_data_frame(results):
     df = pd.DataFrame(results[1:], columns=results[0], dtype=float)
     return df
 
+def filter_data_frame(df, arg_dict):
+    """
+    New DataFrame that contains only rows in df where (column, value) pairs
+    correspond to arg_dict.
+    """
+    filtered_df = df.copy()
+    for k, v in arg_dict.items():
+        filtered_df = filtered_df[filtered_df[k] == v]
+    return filtered_df
+
+
 def generate_result_table_by_question(result_path):
     """Loads numpy files saved from memn2n and returns DataFrame."""
     # we'll use these lists to construct our dataframe
@@ -35,7 +48,8 @@ def generate_result_table_by_question(result_path):
 
     # first define keys for values we want to extract from saved files
     params = ['dim_memory', 'dim_emb', 'learning_rate', 'num_hops', \
-        'num_caches', 'world size', 'num ex', 'noise']
+        'num_caches']
+    params_in_path = ['world_size', 'num_ex', 'noise']
 
     task_labels_val = [] 
     task_labels_test = []
@@ -46,8 +60,8 @@ def generate_result_table_by_question(result_path):
         task_labels_test.append(
             '%s_%s_test_test_test_acc' % (task_type, question)
         )
-    val_results.extend(task_labels_val + params)
-    test_results.extend(task_labels_test + params)
+    val_results.extend(task_labels_val + params + params_in_path)
+    test_results.extend(task_labels_test + params + params_in_path)
 
     # results of initializations are stored across multiple files
     # iterate through them to collect results for the DataFrame
@@ -59,12 +73,12 @@ def generate_result_table_by_question(result_path):
 
         val_results.extend([results[label] for label in task_labels_val])
         val_results.extend([results[param] for param in params])
-        val_results.extend([world_size, num_ex, noise])
+        val_results.extend([3, num_ex, noise]) # hard code large to 3 for now
         test_results.extend([results[label] for label in task_labels_test])
         test_results.extend([results[param] for param in params])
-        test_results.extend([world_size, num_ex, noise])
+        test_results.extend([3, num_ex, noise]) # hard code large to 3 for now
 
-    num_entries = len(params) + len(task_labels_val)
+    num_entries = len(params) + len(task_labels_val) + 3
     val_results = np.reshape(val_results, (-1, num_entries))
     test_results = np.reshape(test_results, (-1, num_entries))
 
@@ -79,14 +93,15 @@ def average_across_tasks(df, split):
     Add new columns to dataframe with overall performance across tasks and
     questions. Will mutate df!
     """
-    TB_columns = ['tb_'+q+split+'test_test_acc' for q in QUESTIONS]
-    FB_columns = ['fb_'+q+split+'test_test_acc' for q in QUESTIONS]
-    SOFB_columns = ['sofb_'+q+split+'test_test_acc' for q in QUESTIONS]
+    assert split == 'val' or split == 'test'
+    TB_columns = ['tb_'+q+'_'+split+'_test_test_acc' for q in QUESTIONS]
+    FB_columns = ['fb_'+q+'_'+split+'_test_test_acc' for q in QUESTIONS]
+    SOFB_columns = ['sofb_'+q+'_'+split+'_test_test_acc' for q in QUESTIONS]
     all_questions = TB_columns + FB_columns + SOFB_columns
-    belief_columns = [t+'belief'+split+'test_test_acc' for t in TASKS]
-    memory_columns = [t+'memory'+split+'test_test_acc' for t in TASKS]
-    reality_columns = [t+'reality'+split+'test_test_acc' for t in TASKS]
-    search_columns = [t+'search'+split+'test_test_acc' for t in TASKS]
+    belief_columns = [t+'_'+'belief_'+split+'_test_test_acc' for t in TASKS]
+    memory_columns = [t+'_'+'memory_'+split+'_test_test_acc' for t in TASKS]
+    reality_columns = [t+'_'+'reality_'+split+'_test_test_acc' for t in TASKS]
+    search_columns = [t+'_'+'search_'+split+'_test_test_acc' for t in TASKS]
 
     df['TB_overall'] = df[TB_columns].mean(axis=1)
     df['FB_overall'] = df[FB_columns].mean(axis=1)
@@ -97,33 +112,36 @@ def average_across_tasks(df, split):
     df['search_overall'] = df[search_columns].mean(axis=1)
     df['belief_overall'] = df[belief_columns].mean(axis=1)
 
-def find_best_model(df, split):
+    return df
+
+def find_best_model(df_val, df_test):
     """
     Takes in a DataFrame as computed in generate_result_table_by_question and
     finds the performance of the best model within each task and overall.
     Will mutate df by adding more columns!
     Return dictionary with performance and parameters of best models.
     """
-    assert split == 'val' or split == 'test'
-    df = average_across_tasks(df, split)
+    split = 'test'
+    df_val = average_across_tasks(df_val, 'val')
+    df_test = average_across_tasks(df_test, 'test')
     best_models = {}
-    best_models['tb_best_'+split] = df_val.loc[df_val['TB_overall'].idxmax()]
-    best_models['fb_best_'+spllit] = df_val.loc[df_val['FB_overall'].idxmax()]
-    best_models['sofb_best_'+split] = df_val.loc[df_val['SOFB_overall'].idxmax()] 
-    best_models['best_'+split] = df_val.loc[df_val['overall'].idxmax()] 
-    best_models['memory_best_'+split] = df_val.loc[df_val['memory_overall'].idxmax()]
-    best_models['reality_best_'+split] = df_val.loc[df_val['reality_overall'].idxmax()]
-    best_models['search_best_'+split] = df_val.loc[df_val['search_overall'].idxmax()]
-    best_models['belief_best_'+split] = df_val.loc[df_val['belief_overall'].idxmax()]
+    best_models['tb_best_'+split] = df_test.loc[df_val['TB_overall'].idxmax()]
+    best_models['fb_best_'+split] = df_test.loc[df_val['FB_overall'].idxmax()]
+    best_models['sofb_best_'+split] = df_test.loc[df_val['SOFB_overall'].idxmax()] 
+    best_models['best_'+split] = df_test.loc[df_val['overall'].idxmax()] 
+    best_models['memory_best_'+split] = df_test.loc[df_val['memory_overall'].idxmax()]
+    best_models['reality_best_'+split] = df_test.loc[df_val['reality_overall'].idxmax()]
+    best_models['search_best_'+split] = df_test.loc[df_val['search_overall'].idxmax()]
+    best_models['belief_best_'+split] = df_test.loc[df_val['belief_overall'].idxmax()]
 
     return best_models
 
-def box_plot_creation_helper(df, title, split, save_fig=False):
+def create_box_plots_single_test_file(df, title, split, save_fig=False):
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(9*3, 4*2))
-    belief_columns = [t+'belief'+split+'test_test_acc' for t in TASKS]
-    memory_columns = [t+'memory'+split+'test_test_acc' for t in TASKS]
-    reality_columns = [t+'reality'+split+'test_test_acc' for t in TASKS]
-    search_columns = [t+'search'+split+'test_test_acc' for t in TASKS]
+    belief_columns = [t+'_'+'belief'+split+'test_test_acc' for t in TASKS]
+    memory_columns = [t+'_'+'memory'+split+'test_test_acc' for t in TASKS]
+    reality_columns = [t+'_'+'reality'+split+'test_test_acc' for t in TASKS]
+    search_columns = [t+'_'+'search'+split+'test_test_acc' for t in TASKS]
     all_columns = memory_columns + reality_columns + \
         search_columns + belief_columns
 
@@ -132,20 +150,20 @@ def box_plot_creation_helper(df, title, split, save_fig=False):
     bplots = []
     medianprops = dict(linewidth=3, color='navy') 
     for i in range(4):
-        bplots.appned(ax[i].boxplot(
+        bplots.append(ax[i].boxplot(
             data[i*3:(i+1)*3],
             vert=True,  # vertical box alignment
             patch_artist=True,  # fill with color
-            medianprops=medianprops,
-            labels=labels
-        )
+            medianprops=medianprops#,
+            #labels=labels
+        ))
 
     colors = ['lightgray']*3 + ['lightpink']*3 + \
         ['lightpink', 'lightblue', 'lightpink'] + \
         ['lightpink', 'lightblue', 'lightblue']
 
     for i in range(4):
-        for patch, color in zip(bplots[i]['boxes'], colors[i*3:[(i+1)*3]]):
+        for patch, color in zip(bplots[i]['boxes'], colors[i*3:(i+1)*3]):
             patch.set_facecolor(color)
         ax[i].set_ylim((0,1))
         ax[i].tick_params(axis = 'both', which = 'major', labelsize = 18)
@@ -173,5 +191,27 @@ def create_box_plots():
                 df_tests[i], titles[i], save_fig=True
             )
 
+def main(result_path):
+    df_val, df_test = generate_result_table_by_question(result_path)
+ 
+    experimental_conds = itertools.product([1, 5], [0, 10]) 
+    for model, noise in experimental_conds:
+
+        filter_args = {'num_caches':model, 'noise': noise}
+        df_val_cond = filter_data_frame(df_val, filter_args)
+        df_test_cond = filter_data_frame(df_test, filter_args)
+        res_name = '%s_cache_%s_noise' % (model, noise)
+
+        to_write = str(find_best_model(df_val_cond, df_test_cond))
+        fname = res_name + '.txt'
+        with open(fname, 'w') as f:
+            f.write(to_write) 
+
+        plt_name = res_name + '.png'
+        create_box_plots_single_test_file(
+            df_test_cond, plt_name, '_test_', True
+        )
+
 if __name__ == '__main__':
     args = parse_args()
+    main(args.result_files)
